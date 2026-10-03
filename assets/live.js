@@ -2,7 +2,7 @@
  *  - OpenAlex: newest NASA-affiliated papers on microgravity flames and
  *    spacecraft fire (CORS-enabled, fetched live on every visit).
  *  - NASA Image and Video Library: experiment imagery (live).
- *  - NASA Technical Reports Server: a snapshot refreshed every 6 hours by a
+ *  - NASA Technical Reports Server: a snapshot refreshed every hour by a
  *    scheduled GitHub Actions build (NTRS does not allow browser requests).
  * Results are cached locally so the dashboard opens instantly and offline. */
 (function (FF) {
@@ -20,7 +20,7 @@
     items: [], images: [], newCount: 0, fetchedAt: null,
     status: {
       openalex: { label: "OpenAlex (NASA-affiliated papers)", mode: "Live in your browser", state: "wait", at: null, count: 0 },
-      ntrs: { label: "NASA Technical Reports Server", mode: "Snapshot, refreshed every 6 h", state: "wait", at: null, count: 0 },
+      ntrs: { label: "NASA Technical Reports Server", mode: "Snapshot, refreshed hourly", state: "wait", at: null, count: 0 },
       images: { label: "NASA Image and Video Library", mode: "Live in your browser", state: "wait", at: null, count: 0 }
     }
   };

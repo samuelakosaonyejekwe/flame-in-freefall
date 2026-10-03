@@ -100,6 +100,7 @@
   function openDrawer(html) {
     lastFocus = document.activeElement;
     $("#drawer-body").innerHTML = html; $("#drawer").hidden = false; document.body.style.overflow = "hidden";
+    labelScrollers($("#drawer-body"));
     $("#drawer-close").focus();
   }
   function closeDrawer() {
@@ -409,7 +410,7 @@
       ["Fuels", function (e) { return e.fuels; }], ["Conditions", function (e) { return e.conditions; }], ["Lead", function (e) { return e.pi; }],
       ["Hazards informed", function (e) { var s = new Set(); FF.FINDINGS.forEach(function (f) { if (f.exp.indexOf(e.id) >= 0) f.hazards.forEach(function (h) { s.add(hazardLabel(h)); }); }); return Array.from(s).join(", ") || "None ranked"; }],
       ["Key finding", function (e) { var f = FF.FINDINGS.find(function (x) { return x.exp.indexOf(e.id) >= 0; }); return f ? f.title : "None ranked"; }]];
-    openDrawer('<p class="eyebrow">Side-by-side</p><h2 id="drawer-title">Compare experiments</h2><div class="table-wrap"><table><thead><tr><th></th>' + es.map(function (e) { return "<th>" + esc(e.id) + "</th>"; }).join("") + "</tr></thead><tbody>" +
+    openDrawer('<p class="eyebrow">Side-by-side</p><h2 id="drawer-title">Compare experiments</h2><div class="table-wrap"><table><thead><tr><th scope="col">Attribute</th>' + es.map(function (e) { return "<th>" + esc(e.id) + "</th>"; }).join("") + "</tr></thead><tbody>" +
       rows.map(function (r) { return "<tr><th>" + esc(r[0]) + "</th>" + es.map(function (e) { return "<td>" + esc(r[1](e)) + "</td>"; }).join("") + "</tr>"; }).join("") + "</tbody></table></div>" +
       '<div class="row"><button type="button" class="btn" id="d-ask">Ask FlameMind to compare</button></div>');
     $("#d-ask").addEventListener("click", function () { closeDrawer(); askFromElsewhere("Compare " + S.compare.join(" vs ")); });
@@ -558,7 +559,7 @@
       return "<li>" + (it.isNew ? '<span class="new">New since you last opened the feed</span>' : "") +
         '<h3><a href="' + esc(it.url || "#") + '" target="_blank" rel="noopener noreferrer" data-live="' + esc(it.uid) + '">' + esc(it.title) + "</a></h3>" +
         '<div class="row small muted"><span class="num">' + esc(it.date) + "</span><span>" + esc(it.sourceLabel) + "</span>" + (it.cited ? "<span>" + it.cited + " citations</span>" : "") +
-        '<span title="Fire-safety relevance" aria-label="Relevance ' + bars + ' of 5" class="relmeter">' + meter + "</span></div>" +
+        '<span title="Fire-safety relevance" role="img" aria-label="Fire-safety relevance ' + bars + ' of 5" class="relmeter">' + meter + "</span></div>" +
         (dg ? '<p class="digest">' + esc(dg) + "</p>" : "") +
         (compact ? "" : '<div class="row">' + it.cls.hazards.map(function (h) { return '<span class="chip">' + esc(hazardLabel(h)) + "</span>"; }).join("") +
           '<button type="button" class="chip" data-live-open="' + esc(it.uid) + '">Details</button><button type="button" class="chip" data-live-ask="' + esc(it.uid) + '">Ask FlameMind</button></div>') + "</li>";
@@ -594,7 +595,7 @@
         if (stale) cls = "wait";
         return '<div class="src"><b><span class="status-dot ' + cls + '"></span>' + esc(s.label) + '</b><span class="muted">' + esc(s.mode) + "</span><span>" +
           (s.state === "wait" ? "Checking…" : s.state === "err" ? "Unavailable now (" + esc(s.error || "error") + "), showing saved copy" : s.count + " items · updated " + ago(s.at)) + "</span>" +
-          (stale ? '<span class="note">Older than expected. The 6-hour refresh may be paused; the other two sources stay live.</span>' : "") + "</div>";
+          (stale ? '<span class="note">Older than expected. The hourly refresh may be paused; the other two sources stay live.</span>' : "") + "</div>";
       }).join("") + "</div>" +
       '<div class="grid"><section class="panel span-8"><div class="panel-head"><div><h2>Latest research</h2><p>' + items.length + " of " + st.items.length + " items" + (st.newCount ? " · " + st.newCount + " new since you last opened the feed" : "") + "</p></div>" +
       '<div class="filters"><label class="sr" for="lf-src">Source</label><select id="lf-src"><option value="all">All sources</option><option value="ntrs"' + (f.source === "ntrs" ? " selected" : "") + '>NASA NTRS</option><option value="openalex"' + (f.source === "openalex" ? " selected" : "") + ">NASA-affiliated papers</option></select>" +
@@ -686,7 +687,7 @@
       '<section class="panel span-6"><h2>Sources</h2><div class="stack small" style="margin-top:10px">' +
       "<p><b>Curated knowledge base.</b> " + FF.EXPERIMENTS.length + " NASA and partner investigations (" + Math.min.apply(null, FF.EXPERIMENTS.map(function (e) { return e.years[0]; })) + "–" + FF.NOW_YEAR + ") and " + BASE_FINDINGS.length + " findings distilled from public NASA summaries of SSCE, BASS, Saffire, FLEX, SOFBALL, LSP, SAME, MIST, ACME, FLARE, SoFIE and more, plus " + FF.INCIDENTS.length + " operational incidents.</p>" +
       '<p><b>Live, in your browser:</b> NASA-affiliated publications from <a href="https://openalex.org" target="_blank" rel="noopener noreferrer">OpenAlex</a> and imagery from the <a href="https://images.nasa.gov" target="_blank" rel="noopener noreferrer">NASA Image and Video Library</a>, requested directly by each visitor\'s browser.</p>' +
-      '<p><b>Scheduled snapshot:</b> the <a href="https://ntrs.nasa.gov" target="_blank" rel="noopener noreferrer">NASA Technical Reports Server</a>, which does not accept browser requests, is fetched every 6 hours by an automated build on GitHub\'s servers and published with the site. No personal computer is involved.</p>' +
+      '<p><b>Scheduled snapshot:</b> the <a href="https://ntrs.nasa.gov" target="_blank" rel="noopener noreferrer">NASA Technical Reports Server</a>, which does not accept browser requests, is fetched every hour by an automated build on GitHub\'s servers and published with the site. No personal computer is involved.</p>' +
       '<p><b>Verify before use.</b> Impact, novelty and actionability are rubric-based judgements, and the screening model is checked against NASA observations but is not a certification tool. Check primary sources in NTRS before engineering decisions.</p></div></section>' +
       '<section class="panel span-6"><h2>How ranking works</h2><div class="stack small" style="margin-top:10px">' +
       "<p><b>Evidence strength</b> is computed, not hand-rated: the best supporting test platform (spacecraft-scale fire or standardized ground testing 4, long-duration orbital 3, short-duration microgravity 2), +1 when two or more investigations agree, −1 when all are still preliminary; documented incidents score 5.</p>" +
@@ -791,6 +792,15 @@
     flameSize = size;
   }
 
+  // Horizontally scrollable regions need keyboard focus and a name (WCAG 2.1.1).
+  function labelScrollers(root) {
+    root.querySelectorAll(".table-wrap, .chart.wide").forEach(function (x) {
+      if (x.hasAttribute("tabindex")) return;
+      var h = x.closest(".panel, .drawer-panel"); h = h && h.querySelector("h2");
+      x.tabIndex = 0; x.setAttribute("role", "region"); x.setAttribute("aria-label", (h ? h.textContent : "Table") + " (scrolls sideways)");
+    });
+  }
+
   /* ---------- routing ---------- */
   var VIEWS = ["briefing", "insights", "experiments", "envelope", "ask", "live", "gaps", "data"];
   var redraws = {}, staleSize = {};   // per-view chart redraw, and views whose charts predate a resize
@@ -800,6 +810,7 @@
     var keep = act && act.id && el.contains(act) ? act.id : null;
     redraws[v] = null;
     R[v](el); rendered[v] = true; dirty[v] = false;
+    labelScrollers(el);
     if (keep) { var again = document.getElementById(keep); if (again) again.focus({ preventScroll: true }); }
   }
   function route() {
@@ -809,6 +820,7 @@
       v = rendered[S.view] ? S.view : "briefing";
     }
     var changed = S.view !== v; S.view = v;
+    if (!$("#drawer").hidden) { $("#drawer").hidden = true; document.body.style.overflow = ""; }   // a panel never outlives its section
     VIEWS.forEach(function (x) { document.getElementById("view-" + x).hidden = x !== v; });
     document.querySelectorAll("[data-view]").forEach(function (a) { if (a.tagName === "A") a.setAttribute("aria-current", a.getAttribute("data-view") === v ? "page" : "false"); });
     var more = $("#more-btn"); more.setAttribute("aria-current", ["experiments", "live", "gaps", "data"].indexOf(v) >= 0 ? "page" : "false");
@@ -877,7 +889,14 @@
   applyImported();
   initTop();
   route();
+  // Ask the service worker to save NASA thumbnails for offline use. Called when
+  // new data arrives and again when the worker takes control (first visit).
+  function cacheImages() {
+    var c = navigator.serviceWorker && navigator.serviceWorker.controller;
+    if (c && L.state.images.length) c.postMessage({ type: "cache-images", urls: L.state.images.map(function (im) { return im.thumb; }) });
+  }
   L.onChange(function (st) {
+    cacheImages();
     if (st.newCount) { var d = $("#live-dot"); if (d && S.view !== "live") d.hidden = false; }
     ["briefing", "live", "gaps"].forEach(function (v) { dirty[v] = true; });
     if (S.view === "live") render("live");
@@ -897,6 +916,15 @@
   // Keep the feed fresh while the dashboard stays open.
   setInterval(function () { if (!document.hidden) L.refresh(false); }, 15 * 60 * 1000);
   document.addEventListener("visibilitychange", function () { if (!document.hidden) L.refresh(false); });
+
+  document.addEventListener("error", function (e) {
+    var img = e.target;
+    if (img && img.tagName === "IMG" && img.closest(".gallery")) {
+      var fig = img.closest("figure"); if (fig) fig.hidden = true;
+      var g = img.closest(".gallery");
+      if (g && !g.querySelector("figure:not([hidden])")) g.innerHTML = '<p class="muted small">Images appear when you are online.</p>';
+    }
+  }, true);   // error events do not bubble, so listen in the capture phase
 
   /* ---------- install & offline ---------- */
   var OFFLINE_EDITION = !!window.FF_OFFLINE_EDITION || location.protocol === "file:";
@@ -994,7 +1022,7 @@
         var dlg = $("#drawer"); if (!dlg.hidden && $("#drawer-title") && $("#drawer-title").textContent === "Install for offline use") openInstall();
       }
     });
-    navigator.serviceWorker.addEventListener("controllerchange", function () { if (reloading) location.reload(); });
+    navigator.serviceWorker.addEventListener("controllerchange", function () { if (reloading) location.reload(); else cacheImages(); });
     var onUpdate = function (w) {
       $("#updatebar").hidden = false;
       $("#update-btn").onclick = function () { reloading = true; w.postMessage({ type: "skip-waiting" }); };

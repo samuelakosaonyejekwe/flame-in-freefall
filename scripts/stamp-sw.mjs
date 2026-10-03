@@ -7,9 +7,10 @@ import { join, relative, sep } from "node:path";
 const [site, version] = process.argv.slice(2);
 if (!site || !version) { console.error("usage: stamp-sw.mjs <site-dir> <version>"); process.exit(1); }
 
-// Not precached: the worker itself and the single-file offline edition (a
-// separate download that duplicates everything).
-const SKIP = new Set(["sw.js", "flame-in-freefall-offline.html"]);
+// Not precached: the worker itself, the single-file offline edition (a
+// separate download that duplicates everything), the 404 page and the social
+// preview image (neither is used offline).
+const SKIP = new Set(["sw.js", "flame-in-freefall-offline.html", "404.html", "assets/social.png"]);
 
 async function walk(dir) {
   const out = [];
@@ -21,13 +22,12 @@ async function walk(dir) {
   return out;
 }
 
-const files = (await walk(site)).filter((f) => !SKIP.has(f) && !f.startsWith(".")).sort();
+const files = (await walk(site)).filter((f) => !SKIP.has(f) && !f.startsWith(".") && !f.endsWith(".txt")).sort();   // license texts are not needed offline
 const shell = ["./", ...files];
 const swPath = join(site, "sw.js");
 let sw = await readFile(swPath, "utf8");
-const before = sw;
-sw = sw.replace(/const VERSION = "[^"]*";/, `const VERSION = ${JSON.stringify(version)};`);
-sw = sw.replace(/const SHELL = \[[\s\S]*?\];/, `const SHELL = ${JSON.stringify(shell)};`);
-if (sw === before || !sw.includes(version)) { console.error("stamp-sw: markers not found in sw.js"); process.exit(1); }
+const VERSION_RE = /const VERSION = "[^"]*";/, SHELL_RE = /const SHELL = \[[\s\S]*?\];/;
+if (!VERSION_RE.test(sw) || !SHELL_RE.test(sw)) { console.error("stamp-sw: VERSION or SHELL marker not found in sw.js"); process.exit(1); }
+sw = sw.replace(VERSION_RE, `const VERSION = ${JSON.stringify(version)};`).replace(SHELL_RE, `const SHELL = ${JSON.stringify(shell)};`);
 await writeFile(swPath, sw);
 console.log(`sw.js stamped: ${version}, ${shell.length} files`);

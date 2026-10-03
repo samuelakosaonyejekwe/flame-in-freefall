@@ -19,7 +19,7 @@ Fire safety insights from NASA microgravity combustion data. Built for the 2026 
 The site is static and hosted on GitHub Pages.
 
 - Every visitor's browser fetches **OpenAlex** (NASA-affiliated papers) and the **NASA Image and Video Library** directly on each visit, and again every 15 minutes while the page is open.
-- The **NASA Technical Reports Server** does not accept browser requests. A scheduled GitHub Actions run fetches it every 6 hours and republishes the site. If NTRS is down, the snapshot already published is kept.
+- The **NASA Technical Reports Server** does not accept browser requests. A scheduled GitHub Actions run fetches it every hour and republishes the site. If NTRS is down, the snapshot already published is kept.
 - GitHub pauses scheduled workflows in public repositories after 60 days without repository activity. Each scheduled run calls the workflow "enable" endpoint, without creating commits; maintainers of keepalive tools report that this resets the 60-day counter.
 - **Safety net:** if the schedule ever pauses anyway, the Live NASA feed flags the NTRS snapshot as older than expected. OpenAlex and NASA Images stay live regardless, and running `gh workflow enable Deploy` (or any push) restores the refresh.
 
@@ -37,7 +37,8 @@ Only the live refresh needs a connection. Everything else, including Ask FlameMi
 There is no framework, no build step for development, no backend, no third-party scripts and no tracking.
 
 ```
-index.html               app shell with a strict Content Security Policy
+index.html               app shell with a strict Content Security Policy and link-preview tags
+404.html                 sends mistyped addresses back to the dashboard
 manifest.webmanifest     install metadata (icons, shortcuts)
 sw.js                    offline engine (precache, saved data, image cache, updates)
 assets/data.js           curated knowledge base: experiments, findings, incidents, glossary
@@ -45,12 +46,12 @@ assets/engine.js         analysis engine: BM25 retrieval, ranking, flammability 
 assets/live.js           live data: OpenAlex, NASA Images, NTRS snapshot
 assets/charts.js         dependency-free SVG charts
 assets/app.js            views, interactions, install and offline features
-assets/fonts/            self-hosted fonts (SIL Open Font License)
+assets/fonts/            self-hosted fonts and their SIL Open Font License texts
 live/ntrs.json           NTRS snapshot; the copy in the repository is a seed, refreshed on every publish
 scripts/fetch-live.mjs   NTRS snapshot fetcher
 scripts/build-offline.mjs  builds the single-file offline edition
 scripts/stamp-sw.mjs     stamps the service worker with the release version and file list
-.github/workflows/pages.yml  publish on push and every 6 hours
+.github/workflows/pages.yml  publish on push and every hour
 ```
 
 ## Run locally
@@ -64,7 +65,8 @@ Then open http://localhost:8080. Offline mode works on `localhost` too.
 To reproduce a published build:
 
 ```
-mkdir -p _site && cp -r index.html sw.js manifest.webmanifest assets live _site/
+mkdir -p _site && cp -r index.html 404.html sw.js manifest.webmanifest assets live _site/
+sed -i "s#__SITE_URL__#http://localhost:8080/#g" _site/index.html _site/404.html
 node scripts/build-offline.mjs _site && node scripts/stamp-sw.mjs _site local
 ```
 

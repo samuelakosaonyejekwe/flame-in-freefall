@@ -80,7 +80,7 @@
           var e = b.exp, sel = opts.selected && opts.selected.indexOf(e.id) >= 0;
           var w = Math.max(6, b.e - b.s - 2), clipped = e.years[0] < x0 && w > 60;
           var col = sel ? "var(--ember)" : opts.colorFor(e);
-          body += '<g class="tl-bar" tabindex="0" role="button" data-exp="' + esc(e.id) + '" data-tip="' + esc(e.id + " · " + e.name + "|" + e.years[0] + (e.years[1] !== e.years[0] ? "–" + e.years[1] : "") + " · " + e.platform + "|" + e.category) + '">' +
+          body += '<g class="tl-bar" tabindex="0" role="button" aria-label="' + esc(e.id + ", " + e.name + ", " + e.years[0] + (e.years[1] !== e.years[0] ? " to " + e.years[1] : "")) + '" data-exp="' + esc(e.id) + '" data-tip="' + esc(e.id + " · " + e.name + "|" + e.years[0] + (e.years[1] !== e.years[0] ? "–" + e.years[1] : "") + " · " + e.platform + "|" + e.category) + '">' +
             '<rect class="hit" x="' + b.s + '" y="' + (y + ri * rowH) + '" width="' + (w + 2) + '" height="' + rowH + '"/>' +
             '<rect class="mark" x="' + b.s + '" y="' + (y + ri * rowH + 3) + '" width="' + w + '" height="10" rx="3" style="fill:' + col + '"/>' +
             (clipped ? '<text x="' + (b.s + 4) + '" y="' + (y + ri * rowH + 12) + '" style="fill:var(--bg);font-size:9px">since ' + e.years[0] + "</text>" : "") +
@@ -91,7 +91,7 @@
     });
     var H = y + 4;
     el.classList.add("wide");
-    el.innerHTML = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Timeline of microgravity combustion experiments by platform, ' + x0 + " to " + (x1 - 1) + '">' +
+    el.innerHTML = '<svg viewBox="0 0 ' + W + " " + H + '" role="group" aria-label="Timeline of microgravity combustion experiments by platform, ' + x0 + " to " + (x1 - 1) + '">' +
       '<g class="grid">' + grid.replace(/__H__/g, H - 6) + "</g>" + body + "</svg>";
     el.querySelectorAll("[data-exp]").forEach(function (g) {
       function go() { opts.onPick(g.getAttribute("data-exp")); }

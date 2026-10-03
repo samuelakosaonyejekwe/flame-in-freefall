@@ -1,5 +1,5 @@
 // Fetches the NASA Technical Reports Server, which does not allow direct
-// browser requests, and writes live/ntrs.json. Runs every 6 hours in GitHub
+// browser requests, and writes live/ntrs.json. Runs every hour in GitHub
 // Actions, so the deployed site refreshes without any personal machine.
 // If NTRS is down, the snapshot currently deployed (PAGES_URL) is kept, so a
 // bad run never rolls the site back to the older copy in the repository.

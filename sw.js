@@ -11,7 +11,7 @@ const SHELL = [
   "./", "index.html", "manifest.webmanifest",
   "assets/styles.css", "assets/theme.js", "assets/data.js", "assets/engine.js", "assets/charts.js", "assets/live.js", "assets/app.js",
   "assets/icon.svg", "assets/icon-180.png", "assets/icon-192.png", "assets/icon-512.png",
-  "assets/fonts/barlow-condensed-500.woff2", "assets/fonts/barlow-condensed-600.woff2", "assets/fonts/barlow-condensed-700.woff2",
+  "assets/fonts/barlow-condensed-600.woff2", "assets/fonts/barlow-condensed-700.woff2",
   "assets/fonts/ibm-plex-mono-400.woff2", "assets/fonts/ibm-plex-mono-500.woff2", "assets/fonts/ibm-plex-sans-var.woff2",
   "live/ntrs.json"
 ];
@@ -40,6 +40,12 @@ self.addEventListener("activate", (e) => {
 self.addEventListener("message", (e) => {
   const msg = e.data || {};
   if (msg.type === "skip-waiting") self.skipWaiting();
+  // Save NASA image thumbnails ahead of time so the gallery works offline
+  // even if it was never opened online.
+  if (msg.type === "cache-images" && Array.isArray(msg.urls)) {
+    const urls = msg.urls.filter((u) => typeof u === "string" && u.startsWith("https://images-assets.nasa.gov/")).slice(0, IMG_MAX);
+    e.waitUntil(caches.open(IMG).then((c) => Promise.all(urls.map((u) => c.match(u).then((hit) => hit || fetch(u, { mode: "no-cors" }).then((r) => c.put(u, r)).catch(() => {}))))).then(trimImages));
+  }
   if (msg.type === "status") {
     e.waitUntil(caches.open(APP).then((c) => Promise.all(SHELL.map((u) => c.match(u)))).then((hits) => {
       const saved = hits.filter(Boolean).length;
@@ -77,9 +83,17 @@ self.addEventListener("fetch", (e) => {
     return;
   }
 
-  // Page loads: the app shell, even offline.
+  // Page loads. The app's own page comes from the cache, even offline. Any
+  // other page (such as the offline edition) comes from the network, with the
+  // app as the offline fallback.
   if (req.mode === "navigate") {
-    e.respondWith(caches.open(APP).then((c) => c.match("index.html")).then((hit) => hit || fetch(req)).catch(() => fetch(req)));
+    const root = new URL(self.registration.scope).pathname;
+    const shell = () => caches.open(APP).then((c) => c.match("index.html"));
+    if (url.pathname === root || url.pathname === root + "index.html") {
+      e.respondWith(shell().then((hit) => hit || fetch(req)));
+    } else {
+      e.respondWith(fetch(req).catch(() => shell()));
+    }
     return;
   }
 

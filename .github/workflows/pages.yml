@@ -4,7 +4,9 @@ on:
   push:
     branches: [main]
   schedule:
-    - cron: "17 */6 * * *"   # refresh the NASA report snapshot every 6 hours
+    # Hourly, away from the top of the hour: GitHub may delay or drop scheduled
+    # runs under load, so frequent runs keep the NASA report snapshot fresh.
+    - cron: "23 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -36,9 +38,13 @@ jobs:
         run: node scripts/fetch-live.mjs
 
       - name: Assemble site
+        env:
+          SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
         run: |
           mkdir -p _site
-          cp -r index.html sw.js manifest.webmanifest assets live _site/
+          cp -r index.html 404.html sw.js manifest.webmanifest assets live _site/
+          sed -i "s#__SITE_URL__#${SITE_URL}#g" _site/index.html _site/404.html
+          if grep -q "__SITE_URL__" _site/index.html _site/404.html; then echo "unreplaced placeholder"; exit 1; fi
           node scripts/build-offline.mjs _site
           node scripts/stamp-sw.mjs _site "${GITHUB_SHA::12}"
 
@@ -51,11 +57,11 @@ jobs:
       - id: deployment
         uses: actions/deploy-pages@v5
 
-      # GitHub pauses scheduled workflows after 60 days without repository
-      # activity. Re-enabling through the API resets that clock without
-      # creating commits.
+      # GitHub pauses scheduled workflows in public repositories after 60 days
+      # without repository activity. Calling the enable endpoint is reported to
+      # reset that clock, without creating commits. Runs even if a deploy fails.
       - name: Keep the schedule alive
-        if: github.event_name == 'schedule'
+        if: always() && github.event_name == 'schedule'
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/pages.yml/enable"
