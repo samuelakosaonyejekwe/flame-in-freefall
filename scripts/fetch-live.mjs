@@ -1,7 +1,9 @@
-// Fetches NASA sources that do not allow direct browser access (NTRS)
-// and writes static snapshots to live/. Runs on a schedule in GitHub Actions,
-// so the deployed site refreshes without any personal machine involved.
-// Usage: node scripts/fetch-live.mjs
+// Fetches the NASA Technical Reports Server, which does not allow direct
+// browser requests, and writes live/ntrs.json. Runs every 6 hours in GitHub
+// Actions, so the deployed site refreshes without any personal machine.
+// If NTRS is down, the snapshot currently deployed (PAGES_URL) is kept, so a
+// bad run never rolls the site back to the older copy in the repository.
+// Usage: [PAGES_URL=https://<user>.github.io/<repo>] node scripts/fetch-live.mjs
 import { writeFile, readFile, mkdir } from "node:fs/promises";
 
 const OUT = new URL("../live/", import.meta.url);
@@ -33,9 +35,11 @@ const clean = (s, n = 1200) => String(s || "").replace(/<[^>]*>/g, " ").replace(
 
 async function ntrs() {
   const map = new Map();
+  let ok = 0;
   for (const q of NTRS_QUERIES) {
     const url = `https://ntrs.nasa.gov/api/citations/search?q=${encodeURIComponent(q)}&page.size=25&sort.field=published&sort.order=desc`;
-    const data = await getJSON(url);
+    let data;
+    try { data = await getJSON(url); ok++; } catch (err) { console.warn(`query "${q}" failed: ${err.message}`); continue; }
     for (const r of data.results || []) {
       if (map.has(r.id)) continue;
       const pub = (r.publications || [])[0] || {};
@@ -54,7 +58,17 @@ async function ntrs() {
       });
     }
   }
+  if (!ok) throw new Error("all NTRS queries failed");
   return [...map.values()].filter((x) => x.title && x.date).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 80);
+}
+
+async function deployedSnapshot(name) {
+  const base = process.env.PAGES_URL;
+  if (!base) return null;
+  try {
+    const d = await getJSON(`${base.replace(/\/$/, "")}/live/${name}`, 2);
+    return Array.isArray(d.items) && d.items.length ? d : null;
+  } catch { return null; }
 }
 
 async function save(name, fn) {
@@ -65,8 +79,9 @@ async function save(name, fn) {
     await writeFile(file, JSON.stringify({ generatedAt: new Date().toISOString(), count: items.length, items }));
     console.log(`${name}: ${items.length} items`);
   } catch (err) {
-    // Keep the previous snapshot so the site never loses data on a bad run.
-    try { await readFile(file); console.warn(`${name}: kept previous snapshot (${err.message})`); }
+    const live = await deployedSnapshot(name);
+    if (live) { await writeFile(file, JSON.stringify(live)); console.warn(`${name}: kept deployed snapshot from ${live.generatedAt} (${err.message})`); return; }
+    try { await readFile(file); console.warn(`${name}: kept repository snapshot (${err.message})`); }
     catch { await writeFile(file, JSON.stringify({ generatedAt: null, count: 0, items: [] })); console.warn(`${name}: empty (${err.message})`); }
   }
 }

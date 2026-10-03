@@ -21,7 +21,7 @@
     expFilter: { q: "", category: "", platform: "", regime: "" },
     compare: [],
     hazardFilter: "",
-    liveFilter: { source: "all", hazard: "", mine: false, onlyNew: false },
+    liveFilter: { source: "all", hazard: "", mine: false, onlyNew: false, show: 15 },
     gapSel: null,
     aiMode: prefs.aiMode || "instant",
     chat: []
@@ -53,7 +53,7 @@
     if (s < 90) return "just now"; if (s < 5400) return Math.round(s / 60) + " min ago";
     if (s < 129600) return Math.round(s / 3600) + " h ago"; return Math.round(s / 86400) + " days ago";
   }
-  function pct(n) { return Math.round(n * 100) + "%"; }
+  function pct(n) { return n > 0.995 ? ">99%" : n < 0.005 ? "<1%" : Math.round(n * 100) + "%"; }
   function r1(n) { return (Math.round(n * 10) / 10).toFixed(1); }
   function liveById(uid) { return L.state.items.find(function (it) { return it.uid === uid; }); }
 
@@ -63,7 +63,7 @@
     String(src).split(/\n+/).forEach(function (line) {
       var t = esc(line.trim());
       if (!t) return;
-      t = t.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+      t = t.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/(^|[\s(])\*([^*\s][^*]*?)\*(?=[\s).,;:!?]|$)/g, "$1<em>$2</em>");
       t = t.replace(/\[([A-Z][A-Z0-9]*(?:-[A-Za-z0-9]+)*)\]/g, function (m, id) {
         if (E.byId(id) || liveById(id)) return '<button type="button" class="chip cite" data-cite="' + id + '">' + id + "</button>";
         return m;
@@ -76,9 +76,9 @@
     return out.join("");
   }
   function openCite(id) {
-    if (E.byId(id) && /^F|^U-/.test(id) && FF.FINDINGS.some(function (f) { return f.id === id; })) return openFinding(id);
-    if (E.byId(id)) return openExperiment(id);
-    var it = liveById(id); if (it) return openLive(it);
+    if (FF.FINDINGS.some(function (f) { return f.id === id; })) return openFinding(id);
+    if (FF.EXPERIMENTS.some(function (e) { return e.id === id; })) return openExperiment(id);
+    var it = liveById(id); if (it) openLive(it);
   }
   document.addEventListener("click", function (e) {
     var c = e.target.closest("[data-cite]"); if (c) { e.preventDefault(); openCite(c.getAttribute("data-cite")); }
@@ -113,6 +113,12 @@
   $("#drawer").addEventListener("click", function (e) { if (e.target.id === "drawer") closeDrawer(); });
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape") { if (!$("#drawer").hidden) closeDrawer(); if (!$("#more-sheet").hidden) $("#more-sheet").hidden = true; }
+    if (e.key === "Tab" && !$("#drawer").hidden) {
+      var f = Array.prototype.filter.call($("#drawer").querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'), function (x) { return !x.disabled && x.offsetParent !== null; });
+      if (!f.length) return;
+      if (e.shiftKey && document.activeElement === f[0]) { e.preventDefault(); f[f.length - 1].focus(); }
+      else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { e.preventDefault(); f[0].focus(); }
+    }
   });
 
   function findingBlock(f, rank, score) {
@@ -122,7 +128,7 @@
       '<h3><button type="button" class="linkbtn" data-cite="' + esc(f.id) + '" style="color:inherit;text-decoration:none;text-align:left">' + esc(f.title) + "</button></h3>" +
       "<p>" + esc(S.audience === "crew" ? f.plain : f.text) + "</p>" +
       '<p class="act"><b>Do this:</b> ' + esc(f.action) + "</p>" +
-      '<div class="meta"><span class="chip cite" data-cite="' + esc(f.id) + '">' + esc(f.id) + "</span>" +
+      '<div class="meta"><button type="button" class="chip cite" data-cite="' + esc(f.id) + '">' + esc(f.id) + "</button>" +
       (score != null ? '<span class="chip num">Score ' + Math.round(score) + "</span>" : "") + hz + exps + "</div></div></li>";
   }
 
@@ -216,7 +222,7 @@
       '<div class="stats">' +
         stat("Experiments & campaigns", FF.EXPERIMENTS.length, "drop tower to Cygnus") +
         stat("Ranked findings", FF.FINDINGS.length, "scored for " + m.label.split(" (")[0]) +
-        stat("Years of flight research", (2026 - minY), "since " + minY) +
+        stat("Years of microgravity research", (FF.NOW_YEAR - minY), "since " + minY) +
         stat("New NASA papers, 12 months", L.state.items.length ? recent : "…", L.state.fetchedAt ? "updated " + ago(L.state.fetchedAt) : "loading live feed") +
       "</div>" +
       '<div class="grid">' +
@@ -236,7 +242,7 @@
         '<section class="panel span-6"><div class="panel-head"><div><h2>Latest from NASA</h2><p>Live from OpenAlex and the NASA Technical Reports Server.</p></div><a class="btn" href="#live">Open feed</a></div>' +
         '<ul class="feed" id="brief-feed">' + feedItems(L.state.items.slice(0, 4), true) + "</ul></section>" +
         '<section class="panel span-12"><div class="panel-head"><div><h2>Lessons from real incidents</h2><p>Operational events that shaped today\'s fire safety rules.</p></div></div>' +
-        '<div class="cards">' + FF.INCIDENTS.map(function (i) { return '<article class="card" style="cursor:default"><div class="top"><span class="id">' + esc(i.name) + '</span><span class="yrs">' + i.year + "</span></div><p style=\"-webkit-line-clamp:unset\">" + esc(i.text) + "</p></article>"; }).join("") + "</div></section>" +
+        '<div class="incidents">' + FF.INCIDENTS.map(function (i) { return '<article class="card" style="cursor:default"><div class="top"><span class="id">' + esc(i.name) + '</span><span class="yrs">' + i.year + "</span></div><p style=\"-webkit-line-clamp:unset\">" + esc(i.text) + "</p></article>"; }).join("") + "</div></section>" +
       "</div>";
 
     el.querySelectorAll("[data-chk]").forEach(function (cb) {
@@ -276,34 +282,43 @@
         '</div><p class="note" style="margin-top:14px">Score = Σ weight × normalized rating ÷ Σ weights, on a 0–100 scale. Ratings are editorial and documented in Data &amp; method.</p></section>' +
         '<section class="panel span-8"><div class="panel-head"><div><h2>Top 12 by score</h2><p>Bar segments show how much each criterion contributes.</p></div>' + criteriaLegend() + '</div><div class="rbars" id="rbars">' +
         ranked.slice(0, 12).map(function (x) { return rankBar(x, true); }).join("") + "</div></section>" +
-        '<section class="panel span-12"><div class="panel-head"><div><h2>All findings</h2><p>' + shown.length + " of " + ranked.length + ' shown.</p></div><div class="row"><label class="sr" for="hz-filter">Filter by hazard</label><select id="hz-filter"><option value="">All hazards</option>' +
+        '<section class="panel span-12"><div class="panel-head"><div><h2>All findings</h2><p id="ins-count">' + shown.length + " of " + ranked.length + ' shown.</p></div><div class="row"><label class="sr" for="hz-filter">Filter by hazard</label><select id="hz-filter"><option value="">All hazards</option>' +
         FF.HAZARDS.map(function (h) { return '<option value="' + h.id + '"' + (S.hazardFilter === h.id ? " selected" : "") + ">" + esc(h.label) + "</option>"; }).join("") + "</select></div></div>" +
-        '<ol class="flist">' + shown.map(function (x) { return findingBlock(x.f, ranked.indexOf(x) + 1, x.total); }).join("") + "</ol></section>" +
+        '<ol class="flist" id="ins-list">' + shown.map(function (x) { return findingBlock(x.f, ranked.indexOf(x) + 1, x.total); }).join("") + "</ol></section>" +
       "</div>";
     C.bindTips($("#rbars", el));
-    el.querySelectorAll("[data-open]").forEach(function (b) {
-      function go() { openFinding(b.getAttribute("data-open")); }
-      b.addEventListener("click", go); b.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
-    });
+    // One delegated handler survives every redraw of the bars.
+    var bars = $("#rbars", el);
+    bars.addEventListener("click", function (e) { var b = e.target.closest("[data-open]"); if (b) openFinding(b.getAttribute("data-open")); });
+    bars.addEventListener("keydown", function (e) { var b = e.target.closest("[data-open]"); if (b && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); openFinding(b.getAttribute("data-open")); } });
+    // Redraw only the ranked parts, so sliders and selects keep keyboard focus.
+    function refresh(withList) {
+      var rk = E.rankFindings(S.weights, m.tag);
+      bars.innerHTML = rk.slice(0, 12).map(function (x) { return rankBar(x, true); }).join("");
+      if (withList) {
+        var sh = S.hazardFilter ? rk.filter(function (x) { return x.f.hazards.indexOf(S.hazardFilter) >= 0; }) : rk;
+        $("#ins-list", el).innerHTML = sh.map(function (x) { return findingBlock(x.f, rk.indexOf(x) + 1, x.total); }).join("");
+        $("#ins-count", el).textContent = sh.length + " of " + rk.length + " shown.";
+      }
+      persist(); dirty.briefing = true;
+    }
+    function syncSliders() {
+      E.CRITERIA.forEach(function (c) { $("#w-" + c.id, el).value = S.weights[c.id]; $("#wo-" + c.id, el).textContent = S.weights[c.id]; });
+    }
     var raf = 0;
     el.querySelectorAll("[data-w]").forEach(function (inp) {
       inp.addEventListener("input", function () {
-        S.weights[inp.getAttribute("data-w")] = +inp.value; $("#wo-" + inp.getAttribute("data-w")).textContent = inp.value;
-        cancelAnimationFrame(raf); raf = requestAnimationFrame(function () {
-          var rk = E.rankFindings(S.weights, m.tag);
-          $("#rbars").innerHTML = rk.slice(0, 12).map(function (x) { return rankBar(x, true); }).join("");
-          $("#rbars").querySelectorAll("[data-open]").forEach(function (b) { b.addEventListener("click", function () { openFinding(b.getAttribute("data-open")); }); });
-          persist(); dirty.briefing = true;
-        });
+        S.weights[inp.getAttribute("data-w")] = +inp.value; $("#wo-" + inp.getAttribute("data-w"), el).textContent = inp.value;
+        cancelAnimationFrame(raf); raf = requestAnimationFrame(function () { refresh(false); });
       });
-      inp.addEventListener("change", function () { render("insights"); });
+      inp.addEventListener("change", function () { refresh(true); });
     });
     var PRESETS = { balanced: DEFAULT_W, safety: { impact: 45, evidence: 20, mission: 20, action_s: 15, novelty: 0 },
       evidence: { impact: 20, evidence: 45, mission: 15, action_s: 15, novelty: 5 }, frontier: { impact: 15, evidence: 10, mission: 15, action_s: 10, novelty: 50 } };
     el.querySelectorAll("[data-preset]").forEach(function (b) {
-      b.addEventListener("click", function () { S.weights = Object.assign({}, PRESETS[b.getAttribute("data-preset")]); persist(); dirty.briefing = true; render("insights"); toast("Weights set: " + b.textContent); });
+      b.addEventListener("click", function () { S.weights = Object.assign({}, PRESETS[b.getAttribute("data-preset")]); syncSliders(); refresh(true); toast("Weights set: " + b.textContent); });
     });
-    $("#hz-filter", el).addEventListener("change", function (e) { S.hazardFilter = e.target.value; render("insights"); });
+    $("#hz-filter", el).addEventListener("change", function (e) { S.hazardFilter = e.target.value; refresh(true); });
     function rows() {
       return E.rankFindings(S.weights, m.tag).map(function (x, i) {
         return { rank: i + 1, id: x.f.id, score: Math.round(x.total), title: x.f.title, finding: x.f.text, action: x.f.action, hazards: x.f.hazards.join("; "), experiments: x.f.exp.join("; "), evidence: x.f.evidence, mission: m.label };
@@ -328,11 +343,11 @@
       '<div class="view-head"><div><p class="eyebrow">Evidence base</p><h1>Experiments</h1><p>' + FF.EXPERIMENTS.length + " investigations from drop towers to orbiting cargo ships. Select any bar or card for details, or tick up to three to compare.</p></div></div>" +
       '<section class="panel"><div class="panel-head"><div><h2>Timeline by platform</h2><p>Bars span active years. Highlighted bars match your filters.</p></div></div><div class="chart" id="tl"></div></section>' +
       '<div class="filters"><label class="sr" for="ex-q">Search experiments</label><input type="search" id="ex-q" placeholder="Search by name, fuel, finding…" value="' + esc(f.q) + '">' +
-      sel("ex-cat", "Category", cats, f.category) + sel("ex-plat", "Platform", plats, f.platform) +
+      sel("ex-cat", "Category", "All categories", cats, f.category) + sel("ex-plat", "Platform", "All platforms", plats, f.platform) +
       '<label class="sr" for="ex-reg">Conditions</label><select id="ex-reg"><option value="">All conditions</option>' + FF.REGIMES.map(function (r) { return '<option value="' + r.id + '"' + (f.regime === r.id ? " selected" : "") + ">" + esc(r.label) + "</option>"; }).join("") + "</select></div>" +
       '<p class="muted small" id="ex-count"></p><div class="cards" id="ex-cards"></div><div id="cmp-slot"></div>';
-    function sel(id, label, opts, v) {
-      return '<label class="sr" for="' + id + '">' + label + '</label><select id="' + id + '"><option value="">All ' + label.toLowerCase() + "s</option>" +
+    function sel(id, label, all, opts, v) {
+      return '<label class="sr" for="' + id + '">' + label + '</label><select id="' + id + '"><option value="">' + all + "</option>" +
         opts.map(function (o) { return '<option' + (v === o ? " selected" : "") + ">" + esc(o) + "</option>"; }).join("") + "</select>";
     }
     function matches(e) {
@@ -344,8 +359,12 @@
     function update() {
       var list = FF.EXPERIMENTS.filter(matches);
       if (f.q.trim()) {
-        var hits = E.retrieve(f.q, 60), ids = new Set();
-        hits.forEach(function (h) { if (h.doc.kind === "experiment") ids.add(h.doc.id); if (h.doc.kind === "finding") h.doc.ref.exp.forEach(function (x) { ids.add(x); }); });
+        // Keep only strong matches: common words like "flame" match almost every record.
+        var hits = E.retrieve(f.q, 60), ids = new Set(), top = hits.length ? hits[0].score : 0;
+        hits.filter(function (h) { return h.score >= top * 0.4; }).forEach(function (h) {
+          if (h.doc.kind === "experiment") ids.add(h.doc.id);
+          if (h.doc.kind === "finding") h.doc.ref.exp.forEach(function (x) { ids.add(x); });
+        });
         var order = Array.from(ids);
         list = list.filter(function (e) { return ids.has(e.id); }).sort(function (a, b) { return order.indexOf(a.id) - order.indexOf(b.id); });
       }
@@ -355,13 +374,13 @@
       $("#ex-count", el).textContent = list.length + " of " + FF.EXPERIMENTS.length + " experiments";
       $("#ex-cards", el).innerHTML = list.length ? list.map(function (e) {
         var n = FF.FINDINGS.filter(function (x) { return x.exp.indexOf(e.id) >= 0; }).length, c = S.compare.indexOf(e.id) >= 0;
-        return '<article class="card" data-exp="' + esc(e.id) + '" tabindex="0" role="button" aria-label="' + esc(e.id + ", " + e.name) + '"><div class="top"><span class="id">' + esc(e.id) + '</span><span class="yrs">' + esc(yrs(e)) + "</span></div>" +
-          "<h3>" + esc(e.name) + "</h3><p>" + esc(e.summary) + '</p><div class="row"><span class="chip">' + esc(e.platform) + '</span><span class="chip">' + esc(e.category) + "</span>" + (n ? '<span class="chip">' + n + " finding" + (n > 1 ? "s" : "") + "</span>" : "") +
+        return '<article class="card" data-exp="' + esc(e.id) + '"><div class="top"><span class="id">' + esc(e.id) + '</span><span class="yrs">' + esc(yrs(e)) + (e.ongoing ? " · ongoing" : "") + "</span></div>" +
+          '<h3><button type="button" class="linkbtn" data-open-exp="' + esc(e.id) + '" style="color:inherit;text-decoration:none;text-align:left">' + esc(e.name) + "</button></h3><p>" + esc(e.summary) + '</p><div class="row"><span class="chip">' + esc(e.platform) + '</span><span class="chip">' + esc(e.category) + "</span>" + (n ? '<span class="chip">' + n + " finding" + (n > 1 ? "s" : "") + "</span>" : "") +
           '<label class="cmp"><input type="checkbox" id="cmp-' + esc(e.id) + '" data-cmp="' + esc(e.id) + '"' + (c ? " checked" : "") + ">Compare</label></div></article>";
       }).join("") : '<p class="muted">No experiments match. Clear a filter or try a broader search.</p>';
       $("#ex-cards", el).querySelectorAll("[data-exp]").forEach(function (card) {
+        // The title button is the keyboard and screen-reader target; the whole card is a larger pointer target.
         card.addEventListener("click", function (ev) { if (ev.target.closest(".cmp")) return; openExperiment(card.getAttribute("data-exp")); });
-        card.addEventListener("keydown", function (ev) { if ((ev.key === "Enter" || ev.key === " ") && ev.target === card) { ev.preventDefault(); openExperiment(card.getAttribute("data-exp")); } });
       });
       $("#ex-cards", el).querySelectorAll("[data-cmp]").forEach(function (cb) {
         cb.addEventListener("change", function () {
@@ -416,7 +435,7 @@
         '<section class="panel span-5"><div class="panel-head"><div><h2>Why gravity matters</h2><p>Limiting oxygen vs flow at four gravity levels. Lower means more flammable.</p></div></div><div class="chart" id="gcurves"></div>' + C.gravityLegend() + "</section>" +
         '<section class="panel span-12"><div class="panel-head"><div><h2>All materials in this atmosphere</h2><p>Compared at your flow and at each material\'s most flammable flow.</p></div></div><div class="table-wrap" id="mtable"></div></section>' +
         '<section class="panel span-12"><details><summary>How the model works</summary><div class="stack small" style="margin-top:10px">' +
-        "<p>Effective flow combines ventilation with a buoyant velocity scale: u<sub>eff</sub> = √(u² + u<sub>b</sub>²), with u<sub>b</sub> ≈ 30 cm/s × g<sup>1/3</sup>. The limiting oxygen follows a U-shape in ln(u<sub>eff</sub>): lowest near 8 cm/s for thin fuels (12 cm/s for thick), rising steeply at low flow (oxygen starvation and radiative loss, [F01] [F04]) and gently toward blowoff. The curve is calibrated so quiescent 1 g matches each material's representative upward-spread limit, with a microgravity reduction based on [F02]. Reduced pressure raises the limit slightly at fixed oxygen fraction. Spread probability is a logistic function of the oxygen margin.</p>" +
+        modelDoc() +
         "<p>This captures the trends NASA measured (U-shaped boundary, more flammable at low flow and partial gravity, higher risk in enriched atmospheres) but its coefficients are illustrative. It is a teaching and screening tool, not a substitute for NASA-STD-6001 testing.</p></div></details></section>" +
       "</div>";
     function slider(k, label, min, max, step, v, unit) {
@@ -469,7 +488,20 @@
       persist(); update();
     }
     update();
+    redraws.envelope = update;
   };
+
+  // Model explanation generated from the engine's constants, so the text can
+  // never drift from what the code computes.
+  function modelDoc() {
+    var M = E.MODEL;
+    return "<p>Effective flow combines ventilation with a buoyant velocity scale: u<sub>eff</sub> = max(" + M.uMin + " cm/s, √(u² + u<sub>b</sub>²)), with u<sub>b</sub> = " + M.ub1g + " cm/s × g<sup>1/3</sup>. " +
+      "The limiting oxygen follows a U-shape in ln(u<sub>eff</sub>): lowest near " + M.uStarThin + " cm/s for thin fuels (" + M.uStarThick + " cm/s for thick), rising steeply at low flow (oxygen starvation and radiative loss, curvature " + M.aLow + " points per ln², " +
+      '<button type="button" class="chip cite" data-cite="F01">F01</button> <button type="button" class="chip cite" data-cite="F04">F04</button>) and gently toward blowoff. ' +
+      "The high-flow side is calibrated so quiescent 1 g at " + M.pRef + " kPa returns each material's representative upward-spread limit, with a microgravity reduction based on " +
+      '<button type="button" class="chip cite" data-cite="F02">F02</button>. Lower pressure raises the limit by ' + M.kP + " points × ln(" + M.pRef + " kPa ÷ P) at fixed oxygen fraction. " +
+      "Spread probability is a logistic function of the oxygen margin with a width of " + M.width + " points.</p>";
+  }
 
   /* ---------- Ask FlameMind ---------- */
   var cloud = { key: null, remember: false, sdk: null, ctl: null };
@@ -492,7 +524,9 @@
   function cloudAsk(question, onText, signal) {
     var mm = mission();
     var pack = E.contextPack(question, ctx());
-    var turns = S.chat.filter(function (t) { return t.final; }).slice(-6).map(function (t) { return { role: t.role, content: t.text }; });
+    var hist = S.chat.filter(function (t) { return t.final; });
+    if (hist.length && hist[hist.length - 1].role === "user") hist = hist.slice(0, -1);   // the question being asked goes in below, with its evidence
+    var turns = hist.slice(-6).map(function (t) { return { role: t.role, content: t.text }; });
     while (turns.length && turns[0].role !== "user") turns.shift();
     var userMsg = "Mission: " + mm.label + " (" + mm.note + ")\nAudience: " + (S.audience === "crew" ? "crew and general public, plain language" : "engineers and scientists") +
       "\n\nCONTEXT:\n" + pack + "\n\nQUESTION: " + question;
@@ -512,20 +546,20 @@
         if (err && err.status === 400 && /fallback/i.test(String(err.message))) return run(false);
         throw err;
       }).then(function (msg) {
-        if (msg.stop_reason === "refusal") { var e = new Error("The cloud model declined this request."); e.code = "refused"; throw e; }
+        if (msg.stop_reason === "refusal") { var e = new Error("Deep mode declined this request."); e.code = "refused"; throw e; }
         return msg.content.filter(function (b) { return b.type === "text"; }).map(function (b) { return b.text; }).join("");
       });
     });
   }
   function cloudError(err) {
-    if (err && err.name === "AbortError") return "Stopped.";
+    if (cloud.ctl && cloud.ctl.signal.aborted) return "Stopped.";
     var st = err && err.status;
-    if (st === 401) return "The API key was rejected. Check it in Deep analysis settings.";
+    if (st === 401) return "The API key was rejected. Check it with the API key button above.";
     if (st === 403) return "This API key does not have access to the model.";
     if (st === 429) return "Rate limit reached on your API key. Try again in a minute.";
-    if (st >= 500) return "The cloud model is temporarily unavailable.";
+    if (st >= 500) return "The Anthropic API is temporarily unavailable.";
     if (err && err.code === "refused") return err.message;
-    return "Could not reach the cloud model (" + ((err && err.message) || "network error") + ").";
+    return "Could not reach the Anthropic API (" + ((err && err.message) || "network error") + ").";
   }
 
   function chatHTML(t) {
@@ -536,16 +570,16 @@
   function welcome() {
     return { role: "assistant", final: true, engine: "On-device", text:
       "Ask me anything about how fire behaves in microgravity and what it means for **" + mission().label + "**.\n" +
-      "- I rank and summarize NASA findings, compare experiments, find research gaps, and run screening scenarios like *cotton at 34% O2, 56 kPa, lunar gravity*.\n" +
+      "- I rank and summarize NASA findings, compare experiments, find research gaps, and run screening scenarios such as \u201ccotton at 34% O2, 56 kPa, lunar gravity\u201d.\n" +
       "- Every claim links to its source: tap a citation chip to open it.\n" +
-      "- **Instant** mode runs entirely on this device. **Deep** mode uses a cloud language model with your own API key, grounded in the same evidence." };
+      "- **Instant** mode runs entirely on this device, even offline. **Deep** mode sends the same evidence to the Anthropic API with your own key for longer, conversational answers." };
   }
   R.ask = function (el) {
     if (!S.chat.length) S.chat.push(welcome());
     var deep = S.aiMode === "deep";
     el.innerHTML =
-      '<div class="view-head"><div><p class="eyebrow">AI analyst</p><h1>Ask FlameMind</h1><p>Grounded answers with citations, tuned to your mission and audience.</p></div>' +
-      '<div class="row"><div class="seg" role="radiogroup" aria-label="Analysis engine"><button type="button" role="radio" id="mode-instant" aria-checked="' + !deep + '">Instant</button><button type="button" role="radio" id="mode-deep" aria-checked="' + deep + '">Deep</button></div>' +
+      '<div class="view-head"><div><p class="eyebrow">Evidence analyst</p><h1>Ask FlameMind</h1><p>Grounded answers with citations, tuned to your mission and audience.</p></div>' +
+      '<div class="row"><div class="seg" role="group" aria-label="Answer mode"><button type="button" id="mode-instant" aria-pressed="' + !deep + '">Instant</button><button type="button" id="mode-deep" aria-pressed="' + deep + '">Deep</button></div>' +
       '<button type="button" class="btn" id="key-btn"><svg><use href="#i-key"/></svg>' + (cloud.key ? "API key set" : "Set API key") + "</button></div></div>" +
       '<section class="panel chat"><div class="msgs" id="msgs" aria-live="polite">' + S.chat.map(chatHTML).join("") + "</div>" +
       '<div class="composer"><div class="sugg">' + FF.SUGGESTED.map(function (q) { return '<button type="button" class="chip" data-q="' + esc(q) + '">' + esc(q) + "</button>"; }).join("") + "</div>" +
@@ -567,13 +601,14 @@
   function askFromElsewhere(q) { pendingAsk = q; if (S.view === "ask") { send(q); pendingAsk = null; } else location.hash = "ask"; }
   var busy = false;
   function send(q) {
-    q = String(q || "").trim(); if (!q || busy) return;
+    q = String(q || "").trim(); if (!q) return;
+    if (busy) { toast("Still answering. Press Stop to ask something else."); return; }
     var input = $("#ask-input"); if (input) { input.value = ""; input.style.height = ""; }
     S.chat.push({ role: "user", text: q, final: true });
     var c = ctx(), local = E.answer(q, c);
     if (S.aiMode === "deep" && cloud.key && navigator.onLine) {
-      var t = { role: "assistant", text: "", final: false, engine: "Deep · cloud model", confidence: null };
-      S.chat.push(t); redrawChat(); busy = true; $("#ask-stop").hidden = false;
+      var t = { role: "assistant", text: "", final: false, engine: "Deep · Anthropic API", confidence: null };
+      S.chat.push(t); redrawChat(); busy = true; $("#ask-stop").hidden = false; $("#msgs").setAttribute("aria-busy", "true");
       cloud.ctl = new AbortController();
       var last = 0;
       cloudAsk(q, function (snap) { t.text = snap; var now = Date.now(); if (now - last > 60) { last = now; redrawLast(t); } }, cloud.ctl.signal)
@@ -583,11 +618,11 @@
         })
         .catch(function (err) {
           t.final = true;
-          if (err && err.name === "AbortError" && t.text) { t.note = "Stopped early."; return; }
+          if (cloud.ctl.signal.aborted) { t.note = t.text ? "Stopped early." : "Stopped before an answer arrived."; if (!t.text) t.text = "Stopped."; return; }
           t.note = cloudError(err) + " Showing the on-device answer instead.";
           t.engine = "On-device (fallback)"; t.text = local.md; t.confidence = local.confidence;
         })
-        .then(function () { busy = false; var st = $("#ask-stop"); if (st) st.hidden = true; redrawChat(); });
+        .then(function () { busy = false; var st = $("#ask-stop"); if (st) st.hidden = true; var mm = $("#msgs"); if (mm) mm.removeAttribute("aria-busy"); redrawChat(); });
     } else {
       S.chat.push({ role: "assistant", text: local.md, final: true, engine: S.aiMode === "deep" ? "On-device (offline)" : "On-device · instant", confidence: local.confidence,
         note: local.kind === "scenario" ? "Scenario loaded into Fire envelope." : null });
@@ -602,8 +637,8 @@
     last.outerHTML = chatHTML(t); m.scrollTop = m.scrollHeight;
   }
   function keyDialog(enableAfter) {
-    openDrawer('<p class="eyebrow">Deep analysis</p><h2 id="drawer-title">Connect a cloud model</h2><div class="stack">' +
-      "<p>Deep mode uses a large language model through the Anthropic API for richer, conversational answers. It is grounded in the same NASA evidence and cites it.</p>" +
+    openDrawer('<p class="eyebrow">Deep analysis</p><h2 id="drawer-title">Connect Deep mode</h2><div class="stack">' +
+      "<p>Deep mode sends your question and the matching NASA evidence to the Anthropic API for longer, conversational answers that cite the same sources.</p>" +
       '<div class="callout info"><b>Your key stays with you.</b> It is stored only in this browser and sent only to api.anthropic.com over HTTPS. There is no server in between. Use a key with a spending limit.</div>' +
       '<label for="key-in" class="small">Anthropic API key</label><input type="password" id="key-in" autocomplete="off" spellcheck="false" placeholder="sk-ant-…" value="' + esc(cloud.key || "") + '">' +
       '<label class="check" style="border:0"><input type="checkbox" id="key-rem"' + (cloud.remember ? " checked" : "") + "><span>Remember on this device (otherwise cleared when the tab closes)</span></label>" +
@@ -624,7 +659,7 @@
       var bars = Math.round(it.cls.relevance * 5), meter = "";
       for (var i = 0; i < 5; i++) meter += "<i" + (i < bars ? ' class="on"' : "") + "></i>";
       var dg = compact ? "" : L.digest(it);
-      return "<li>" + (it.isNew ? '<span class="new">New since your last visit</span>' : "") +
+      return "<li>" + (it.isNew ? '<span class="new">New since you last opened the feed</span>' : "") +
         '<h3><a href="' + esc(it.url || "#") + '" target="_blank" rel="noopener noreferrer" data-live="' + esc(it.uid) + '">' + esc(it.title) + "</a></h3>" +
         '<div class="row small muted"><span class="num">' + esc(it.date) + "</span><span>" + esc(it.sourceLabel) + "</span>" + (it.cited ? "<span>" + it.cited + " citations</span>" : "") +
         '<span title="Fire-safety relevance" aria-label="Relevance ' + bars + ' of 5" class="relmeter">' + meter + "</span></div>" +
@@ -662,17 +697,19 @@
         return '<div class="src"><b><span class="status-dot ' + cls + '"></span>' + esc(s.label) + '</b><span class="muted">' + esc(s.mode) + "</span><span>" +
           (s.state === "wait" ? "Checking…" : s.state === "err" ? "Unavailable now (" + esc(s.error || "error") + "), showing saved copy" : s.count + " items · updated " + ago(s.at)) + "</span></div>";
       }).join("") + "</div>" +
-      '<div class="grid"><section class="panel span-8"><div class="panel-head"><div><h2>Latest research</h2><p>' + items.length + " of " + st.items.length + " items" + (st.newCount ? " · " + st.newCount + " new since your last visit" : "") + "</p></div>" +
+      '<div class="grid"><section class="panel span-8"><div class="panel-head"><div><h2>Latest research</h2><p>' + items.length + " of " + st.items.length + " items" + (st.newCount ? " · " + st.newCount + " new since you last opened the feed" : "") + "</p></div>" +
       '<div class="filters"><label class="sr" for="lf-src">Source</label><select id="lf-src"><option value="all">All sources</option><option value="ntrs"' + (f.source === "ntrs" ? " selected" : "") + '>NASA NTRS</option><option value="openalex"' + (f.source === "openalex" ? " selected" : "") + ">NASA-affiliated papers</option></select>" +
       '<label class="sr" for="lf-hz">Hazard</label><select id="lf-hz"><option value="">All hazards</option>' + FF.HAZARDS.map(function (h) { return '<option value="' + h.id + '"' + (f.hazard === h.id ? " selected" : "") + ">" + esc(h.label) + "</option>"; }).join("") + "</select>" +
       '<label class="chip"><input type="checkbox" id="lf-mine"' + (f.mine ? " checked" : "") + "> " + esc(m.label.split(" (")[0]) + ' only</label><label class="chip"><input type="checkbox" id="lf-new"' + (f.onlyNew ? " checked" : "") + "> New only</label></div></div>" +
-      '<ul class="feed" id="live-list">' + feedItems(items.slice(0, 60)) + "</ul></section>" +
+      '<ul class="feed" id="live-list">' + feedItems(items.slice(0, f.show)) + "</ul>" +
+      (items.length > f.show ? '<div class="row" style="margin-top:12px"><button type="button" class="btn" id="live-more">Show ' + Math.min(15, items.length - f.show) + " more of " + (items.length - f.show) + "</button></div>" : "") + "</section>" +
       '<div class="span-4 stack"><section class="panel"><div class="panel-head"><div><h2>Publications per year</h2><p>Items in the feed since 2010. Latest year highlighted.</p></div></div><div class="chart" id="live-years"></div></section>' +
       '<section class="panel"><div class="panel-head"><div><h2>What the new work covers</h2><p>Share of feed items tagged with each hazard.</p></div></div><div id="live-hz"></div></section></div>' +
       '<section class="panel span-12"><div class="panel-head"><div><h2>From the NASA image library</h2><p>Live search of images.nasa.gov for microgravity combustion.</p></div></div><div class="gallery">' +
       (st.images.length ? st.images.map(function (im) { return '<figure><a href="' + esc(im.page) + '" target="_blank" rel="noopener noreferrer"><img src="' + esc(im.thumb) + '" alt="' + esc(im.title) + '" loading="lazy" decoding="async" width="200" height="150"></a><figcaption>' + esc(im.title) + " · " + esc(im.date.slice(0, 4)) + "</figcaption></figure>"; }).join("") : '<p class="muted small">Images load when the NASA library responds.</p>') +
       "</div></section></div>";
     C.columns($("#live-years", el), years, "items");
+    redraws.live = function () { C.columns($("#live-years", el), years, "items"); };
     var tot = Math.max(1, st.items.length);
     $("#live-hz", el).innerHTML = '<div class="rbars">' + FF.HAZARDS.map(function (h) {
       var n = st.items.filter(function (it) { return it.cls.hazards.indexOf(h.id) >= 0; }).length;
@@ -681,10 +718,15 @@
     C.bindTips($("#live-hz", el));
     bindFeed(el);
     $("#live-refresh", el).addEventListener("click", function () { L.refresh(true).then(function () { toast("Feed refreshed"); }); render("live"); });
-    $("#lf-src", el).addEventListener("change", function (e) { f.source = e.target.value; render("live"); });
-    $("#lf-hz", el).addEventListener("change", function (e) { f.hazard = e.target.value; render("live"); });
-    $("#lf-mine", el).addEventListener("change", function (e) { f.mine = e.target.checked; render("live"); });
-    $("#lf-new", el).addEventListener("change", function (e) { f.onlyNew = e.target.checked; render("live"); });
+    $("#lf-src", el).addEventListener("change", function (e) { f.source = e.target.value; f.show = 15; render("live"); });
+    $("#lf-hz", el).addEventListener("change", function (e) { f.hazard = e.target.value; f.show = 15; render("live"); });
+    $("#lf-mine", el).addEventListener("change", function (e) { f.mine = e.target.checked; f.show = 15; render("live"); });
+    $("#lf-new", el).addEventListener("change", function (e) { f.onlyNew = e.target.checked; f.show = 15; render("live"); });
+    var more = $("#live-more", el);
+    if (more) more.addEventListener("click", function () {
+      var first = f.show; f.show += 15; render("live");
+      var next = $("#live-list", el).children[first]; if (next) { var a = next.querySelector("a"); if (a) a.focus(); }
+    });
     if (st.fetchedAt) setTimeout(L.markSeen, 4000);
   };
 
@@ -697,15 +739,14 @@
     var maxCov = Math.max.apply(null, cells.map(function (c) { return c.cov; }));
     var sel = S.gapSel ? cells.find(function (c) { return c.hazard.id + "|" + c.regime.id === S.gapSel; }) : top[0];
     function step(c) { return c.cov === 0 ? 0 : Math.min(4, 1 + Math.floor(c.cov / maxCov * 3.99)); }
-    function ink(c) { return step(c) >= 3 ? "#ffffff" : "var(--fg)"; }
     el.innerHTML =
       '<div class="view-head"><div><p class="eyebrow">What we still don\'t know</p><h1>Research gaps</h1><p>Each cell shows how much evidence covers a hazard under a set of conditions, weighted by evidence strength. Gaps are ranked by importance to ' + esc(m.label) + " and by how thin the evidence is.</p></div></div>" +
-      '<div class="grid"><section class="panel span-7"><div class="panel-head"><div><h2>Evidence coverage</h2><p>Darker means more evidence. Select a cell for details.</p></div></div><div class="table-wrap" style="border:0"><div class="matrix" role="grid" aria-label="Evidence coverage by hazard and condition">' +
+      '<div class="grid"><section class="panel span-7"><div class="panel-head"><div><h2>Evidence coverage</h2><p>Darker means more evidence. Select a cell for details.</p></div></div><div class="table-wrap" style="border:0"><div class="matrix" aria-label="Evidence coverage by hazard and condition">' +
       '<div class="h"></div>' + FF.REGIMES.map(function (r) { return '<div class="h">' + esc(r.short) + "</div>"; }).join("") +
       FF.HAZARDS.map(function (h) {
         return '<div class="rh">' + esc(h.label) + "</div>" + FF.REGIMES.map(function (r) {
           var c = cells.find(function (x) { return x.hazard.id === h.id && x.regime.id === r.id; }), key = h.id + "|" + r.id;
-          return '<button type="button" class="cell' + (topSet.has(key) ? " gap" : "") + '" aria-pressed="' + (sel === c) + '" data-cell="' + key + '" style="background:' + COV[step(c)] + ";color:" + ink(c) + '" data-tip="' + esc(h.label + " · " + r.label + "|" + c.ids.length + " findings, coverage " + c.cov.toFixed(1) + "|" + c.live + " recent papers") + '">' + c.ids.length + "</button>";
+          return '<button type="button" class="cell s' + step(c) + (topSet.has(key) ? " gap" : "") + '" aria-pressed="' + (sel === c) + '" aria-label="' + esc(h.label + ", " + r.label + ": " + c.ids.length + " findings" + (topSet.has(key) ? ", priority gap" : "")) + '" data-cell="' + key + '" style="background:' + COV[step(c)] + '" data-tip="' + esc(h.label + " · " + r.label + "|" + c.ids.length + " findings, coverage " + c.cov.toFixed(1) + "|" + c.live + " recent papers") + '">' + c.ids.length + "</button>";
         }).join("");
       }).join("") + '</div></div><div class="legend" style="margin-top:12px"><span><i style="background:var(--c0);border:1px solid var(--line-2)"></i>No evidence</span><span><i style="background:var(--c2)"></i>Some</span><span><i style="background:var(--c4)"></i>Strong</span><span><b style="color:var(--crit);font-size:10px">GAP</b> Top-5 priority gap</span></div></section>' +
       '<section class="panel span-5" id="gap-detail"></section>' +
@@ -744,29 +785,31 @@
       '<div class="view-head"><div><p class="eyebrow">Transparency</p><h1>Data &amp; method</h1><p>Where the information comes from, how it is scored, and how to bring your own.</p></div></div>' +
       '<div class="grid">' +
       '<section class="panel span-6"><h2>Sources</h2><div class="stack small" style="margin-top:10px">' +
-      "<p><b>Curated knowledge base.</b> " + FF.EXPERIMENTS.length + " NASA and partner investigations (1985–2026) and " + BASE_FINDINGS.length + " findings distilled from public NASA summaries of SSCE, BASS, Saffire, FLEX, SOFBALL, LSP, SAME, MIST, ACME, FLARE, SoFIE and more, plus four operational incidents.</p>" +
+      "<p><b>Curated knowledge base.</b> " + FF.EXPERIMENTS.length + " NASA and partner investigations (" + Math.min.apply(null, FF.EXPERIMENTS.map(function (e) { return e.years[0]; })) + "–" + FF.NOW_YEAR + ") and " + BASE_FINDINGS.length + " findings distilled from public NASA summaries of SSCE, BASS, Saffire, FLEX, SOFBALL, LSP, SAME, MIST, ACME, FLARE, SoFIE and more, plus " + FF.INCIDENTS.length + " operational incidents.</p>" +
       '<p><b>Live, in your browser:</b> NASA-affiliated publications from <a href="https://openalex.org" target="_blank" rel="noopener noreferrer">OpenAlex</a> and imagery from the <a href="https://images.nasa.gov" target="_blank" rel="noopener noreferrer">NASA Image and Video Library</a>, requested directly by each visitor\'s browser.</p>' +
       '<p><b>Scheduled snapshot:</b> the <a href="https://ntrs.nasa.gov" target="_blank" rel="noopener noreferrer">NASA Technical Reports Server</a>, which does not accept browser requests, is fetched every 6 hours by an automated build on GitHub\'s servers and published with the site. No personal computer is involved.</p>' +
       '<p><b>Verify before use.</b> Ratings are editorial; screening values are illustrative. Check primary sources in NTRS before engineering decisions.</p></div></section>' +
       '<section class="panel span-6"><h2>How ranking works</h2><div class="stack small" style="margin-top:10px">' +
       "<p>Each finding is rated 1–5 on <b>safety impact</b>, <b>evidence strength</b> (flight duration, replication, scale), <b>novelty</b> and <b>actionability</b>, and 0–3 for relevance to ISS, transit, lunar and Martian missions.</p>" +
       "<p>Score = 100 × Σ wᵢ·nᵢ ÷ Σ wᵢ, where nᵢ is the rating normalized to 0–1 and wᵢ are the weights you set in Insights.</p>" +
-      "<p><b>FlameMind</b> retrieves evidence with BM25 search and domain synonyms, detects intent (scenario, comparison, ranking, gaps, definitions) and composes answers that cite their sources. Deep mode sends the same retrieved evidence to a cloud model.</p>" +
+      "<p><b>FlameMind</b> retrieves evidence with BM25 search and domain synonyms, detects intent (scenario, comparison, ranking, gaps, definitions) and composes answers that cite their sources. Deep mode sends the same retrieved evidence to the Anthropic API.</p>" +
+      "<p><b>Research gaps.</b> Coverage of a hazard under a set of conditions is the sum of evidence ratings ÷ 5 of the findings that address it. Gap = mission importance × condition fit × e<sup>−coverage/1.2</sup>, where mission importance is the average mission relevance of findings about that hazard.</p>" +
       "<p><b>Live items</b> are tagged by hazard and condition with a keyword classifier and scored for fire-safety relevance; low-relevance items are filtered out.</p></div></section>" +
       '<section class="panel span-6"><h2>Bring your own findings</h2><div class="stack small" style="margin-top:10px"><p>Import a JSON array of findings (for example, from your team\'s literature review). They join the ranking, the gaps matrix and FlameMind\'s evidence on this device only.</p>' +
       '<details><summary>Expected format</summary><pre class="mono small" style="white-space:pre-wrap;overflow-x:auto">[{ "id": "U-1", "title": "…", "text": "…", "plain": "…", "action": "…",\n  "exp": ["BASS"], "hazards": ["spread"], "regimes": ["ug-air"],\n  "rel": [3,3,2,2], "impact": 4, "evidence": 3, "novelty": 3, "action_s": 4 }]</pre></details>' +
-      '<div class="row"><label class="btn" for="imp-file">Choose JSON file</label><input type="file" id="imp-file" accept="application/json,.json" class="sr"><button type="button" class="btn" id="imp-clear"' + (imp.length ? "" : " disabled") + ">Remove imported (" + imp.length + ")</button></div>" +
-      '<p class="note">Files are read locally and validated; nothing is uploaded.</p></div></section>' +
+      '<div class="row"><input type="file" id="imp-file" accept="application/json,.json" class="sr"><label class="btn" for="imp-file">Choose JSON file</label><button type="button" class="btn" id="imp-clear"' + (imp.length ? "" : " disabled") + ">Remove imported (" + imp.length + ")</button></div>" +
+      '<p class="note">Files are read locally and validated; nothing is uploaded. A new import replaces the previous one.</p></div></section>' +
       '<section class="panel span-6"><h2>Privacy, security and offline use</h2><div class="stack small" style="margin-top:10px">' +
-      "<ul style=\"margin:0;padding-left:18px;display:grid;gap:6px\"><li>No accounts, cookies or analytics. Preferences stay in your browser.</li><li>A strict Content Security Policy limits connections to NASA, OpenAlex and (only in Deep mode) the Anthropic API.</li><li>All external text is escaped before display; imported files are schema-checked.</li><li>Installable as an app and works offline with the last saved data.</li></ul></div></section>" +
-      '<section class="panel span-12"><h2>Glossary</h2><dl class="kv" style="margin-top:12px;grid-template-columns:minmax(120px,200px) minmax(0,1fr)">' +
+      "<ul style=\"margin:0;padding-left:18px;display:grid;gap:6px\"><li>No accounts, cookies or analytics. Preferences stay in your browser.</li><li>App files and fonts come from this site. A strict Content Security Policy allows only NASA's image library and OpenAlex, plus jsDelivr (to load the API client) and the Anthropic API when you turn on Deep mode.</li><li>All external text is escaped before display; imported files are schema-checked.</li><li>Installable as an app and works offline with the last saved data.</li></ul></div></section>" +
+      '<section class="panel span-12"><h2>Glossary</h2><dl class="kv gloss">' +
       FF.GLOSSARY.map(function (g) { return "<dt><b>" + esc(g.term) + "</b></dt><dd>" + esc(g.def) + "</dd>"; }).join("") + "</dl></section></div>";
     $("#imp-file", el).addEventListener("change", function (e) {
-      var file = e.target.files[0]; if (!file) return;
+      var file = e.target.files[0]; e.target.value = ""; if (!file) return;
       if (file.size > 2e6) { toast("File too large (2 MB max)."); return; }
       file.text().then(function (txt) {
         var arr = JSON.parse(txt); if (!Array.isArray(arr)) throw new Error("Expected a JSON array");
-        var clean = arr.slice(0, 500).map(function (f, i) { return sanitizeFinding(f, i); }).filter(Boolean);
+        var seen = {}, clean = arr.slice(0, 500).map(function (f, i) { return sanitizeFinding(f, i); }).filter(Boolean);
+        clean.forEach(function (f) { var base = f.id, k = 2; while (seen[f.id]) f.id = base + "-" + k++; seen[f.id] = 1; });   // unique IDs
         if (!clean.length) throw new Error("No valid findings");
         save("ff.imported", clean); applyImported(); Object.keys(R).forEach(function (k) { dirty[k] = true; }); render("data");
         toast("Imported " + clean.length + " findings");
@@ -781,9 +824,9 @@
     var hz = FF.HAZARDS.map(function (h) { return h.id; }), rg = FF.REGIMES.map(function (r) { return r.id; });
     var title = s(f.title, 160), text = s(f.text);
     if (!title || !text) return null;
-    var id = "U-" + s(f.id || i + 1, 20).replace(/[^A-Za-z0-9-]/g, "").replace(/^U-/, "");
+    var id = "U-" + (s(f.id || i + 1, 20).replace(/[^A-Za-z0-9-]/g, "").replace(/^U-/, "") || String(i + 1));
     return { id: id, title: title, text: text, plain: s(f.plain || f.text), action: s(f.action || "Review with the safety team."),
-      exp: (Array.isArray(f.exp) ? f.exp : []).map(function (x) { return s(x, 20); }).filter(function (x) { return E.byId(x); }),
+      exp: (Array.isArray(f.exp) ? f.exp : []).map(function (x) { return s(x, 20).toUpperCase(); }).filter(function (x) { return FF.EXPERIMENTS.some(function (e) { return e.id === x; }); }),
       hazards: (Array.isArray(f.hazards) ? f.hazards : []).filter(function (x) { return hz.indexOf(x) >= 0; }),
       regimes: (Array.isArray(f.regimes) ? f.regimes : []).filter(function (x) { return rg.indexOf(x) >= 0; }),
       rel: [0, 1, 2, 3].map(function (k) { return n(f.rel && f.rel[k], 0, 3, 1); }),
@@ -791,7 +834,7 @@
   }
 
   /* ---------- hero flame ---------- */
-  var flameRAF = 0, flameG = 0, flameVisible = true;
+  var flameRAF = 0, flameG = 0, flameVisible = true, flameIO = null, flameSize = null;
   function startFlame() {
     var cv = $("#flame"); if (!cv) return;
     var cx2 = cv.getContext("2d"), reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -829,27 +872,42 @@
       cx2.fillStyle = gr; cx2.beginPath(); cx2.arc(0, 0, r, 0, Math.PI * 2); cx2.fill(); cx2.restore();
     }
     cancelAnimationFrame(flameRAF);
-    size();
+    size(); flameSize = size;
     if (reduce) { draw(0); return; }
     function loop(t) { if (!document.getElementById("flame")) return; if (flameVisible && !document.hidden && S.view === "briefing") draw(t); flameRAF = requestAnimationFrame(loop); }
     flameRAF = requestAnimationFrame(loop);
-    if ("IntersectionObserver" in window) new IntersectionObserver(function (en) { flameVisible = en[0].isIntersecting; }).observe(cv);
-    window.addEventListener("resize", function () { if (document.getElementById("flame")) size(); }, { passive: true });
+    if ("IntersectionObserver" in window) {
+      if (!flameIO) flameIO = new IntersectionObserver(function (en) { flameVisible = en[0].isIntersecting; });
+      flameIO.disconnect(); flameIO.observe(cv);
+    }
+    flameSize = size;
   }
 
   /* ---------- routing ---------- */
   var VIEWS = ["briefing", "insights", "experiments", "envelope", "ask", "live", "gaps", "data"];
+  var redraws = {}, staleSize = {};   // per-view chart redraw, and views whose charts predate a resize
   var rendered = {};
-  function render(v) { var el = document.getElementById("view-" + v); R[v](el); rendered[v] = true; dirty[v] = false; }
+  function render(v) {
+    var el = document.getElementById("view-" + v), act = document.activeElement;
+    var keep = act && act.id && el.contains(act) ? act.id : null;
+    redraws[v] = null;
+    R[v](el); rendered[v] = true; dirty[v] = false;
+    if (keep) { var again = document.getElementById(keep); if (again) again.focus({ preventScroll: true }); }
+  }
   function route() {
     var v = (location.hash || "").replace("#", "");
-    if (VIEWS.indexOf(v) < 0) v = "briefing";
+    if (VIEWS.indexOf(v) < 0) {
+      if (v && document.getElementById(v) && rendered[S.view]) return;   // in-page anchor such as the skip link
+      v = rendered[S.view] ? S.view : "briefing";
+    }
     var changed = S.view !== v; S.view = v;
     VIEWS.forEach(function (x) { document.getElementById("view-" + x).hidden = x !== v; });
     document.querySelectorAll("[data-view]").forEach(function (a) { if (a.tagName === "A") a.setAttribute("aria-current", a.getAttribute("data-view") === v ? "page" : "false"); });
     var more = $("#more-btn"); more.setAttribute("aria-current", ["experiments", "live", "gaps", "data"].indexOf(v) >= 0 ? "page" : "false");
     $("#more-sheet").hidden = true;
     if (!rendered[v] || dirty[v]) render(v);
+    else if (staleSize[v] && redraws[v]) redraws[v]();
+    staleSize[v] = false;
     if (v === "ask" && pendingAsk) { var q = pendingAsk; pendingAsk = null; send(q); }
     if (changed) { window.scrollTo(0, 0); var h = document.querySelector("#view-" + v + " h1"); document.title = (h ? h.textContent + " · " : "") + "Flame in Freefall"; $("#main").focus({ preventScroll: true }); }
     if (v === "live") { $("#live-dot").hidden = true; }
@@ -865,14 +923,19 @@
       var m = mission(); S.sim = Object.assign({}, S.sim, { o2: m.o2, p: m.p, g: m.g });
       VIEWS.forEach(function (v) { dirty[v] = true; }); render(S.view); toast("Mission set: " + m.label);
     });
-    function aud() { document.querySelectorAll("[data-audience]").forEach(function (b) { b.setAttribute("aria-checked", b.getAttribute("data-audience") === S.audience); }); }
+    function aud() { document.querySelectorAll("[data-audience]").forEach(function (b) { b.setAttribute("aria-pressed", b.getAttribute("data-audience") === S.audience); }); }
     document.querySelectorAll("[data-audience]").forEach(function (b) {
       b.addEventListener("click", function () { S.audience = b.getAttribute("data-audience"); persist(); aud(); VIEWS.forEach(function (v) { dirty[v] = true; }); render(S.view); });
     });
     aud();
     var tb = $("#theme-btn");
     function isDark() { var t = document.documentElement.getAttribute("data-theme"); return t ? t === "dark" : !(window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches); }
-    function icon() { tb.innerHTML = '<svg><use href="#i-' + (isDark() ? "sun" : "moon") + '"/></svg>'; document.querySelector('meta[name="theme-color"]').setAttribute("content", isDark() ? "#0a0d13" : "#f2f4f8"); }
+    function icon() {
+      tb.innerHTML = '<svg><use href="#i-' + (isDark() ? "sun" : "moon") + '"/></svg>';
+      tb.setAttribute("aria-label", isDark() ? "Switch to light theme" : "Switch to dark theme");
+      document.querySelector('meta[name="theme-color"]').setAttribute("content", isDark() ? "#0a0d13" : "#f2f4f8");
+    }
+    if (window.matchMedia) { var mq = matchMedia("(prefers-color-scheme: light)"); if (mq.addEventListener) mq.addEventListener("change", icon); }
     tb.addEventListener("click", function () {
       var next = isDark() ? "light" : "dark"; document.documentElement.setAttribute("data-theme", next);
       try { localStorage.setItem("ff.theme", next); } catch (e) { /* ignore */ }
@@ -880,7 +943,26 @@
     });
     icon();
     $("#more-btn").addEventListener("click", function () { $("#more-sheet").hidden = false; var a = $("#more-sheet a"); if (a) a.focus(); });
-    $("#more-sheet").addEventListener("click", function (e) { if (e.target.id === "more-sheet" || e.target.closest("a")) $("#more-sheet").hidden = true; });
+    $("#more-sheet").addEventListener("click", function (e) { if (e.target.id === "more-sheet" || e.target.closest("a, button")) $("#more-sheet").hidden = true; });
+    $("#install-btn").addEventListener("click", openInstall);
+    $("#install-btn-2").addEventListener("click", openInstall);
+    // The rail sits below the top bar, whose height changes as controls wrap.
+    var top = $(".topbar");
+    function topH() { document.documentElement.style.setProperty("--topbar-h", top.offsetHeight + "px"); }
+    topH();
+    if ("ResizeObserver" in window) new ResizeObserver(topH).observe(top); else window.addEventListener("resize", topH);
+    // Charts are drawn at their on-screen width; redraw them after a real resize or rotation.
+    var lastW = window.innerWidth, rt = 0;
+    window.addEventListener("resize", function () {
+      clearTimeout(rt);
+      rt = setTimeout(function () {
+        if (flameSize && document.getElementById("flame")) flameSize();
+        if (Math.abs(window.innerWidth - lastW) < 40) return;
+        lastW = window.innerWidth;
+        VIEWS.forEach(function (v) { staleSize[v] = true; });
+        if (redraws[S.view]) { redraws[S.view](); staleSize[S.view] = false; }
+      }, 180);
+    }, { passive: true });
   }
 
   /* ---------- boot ---------- */
@@ -908,7 +990,119 @@
   setInterval(function () { if (!document.hidden) L.refresh(false); }, 15 * 60 * 1000);
   document.addEventListener("visibilitychange", function () { if (!document.hidden) L.refresh(false); });
 
-  if ("serviceWorker" in navigator && location.protocol === "https:") {
-    window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () { /* optional */ }); });
+  /* ---------- install & offline ---------- */
+  var OFFLINE_EDITION = !!window.FF_OFFLINE_EDITION || location.protocol === "file:";
+  var inst = { prompt: null, installed: false, sw: null, edition: null };
+  function standalone() { return (window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true; }
+  function offlineReady() { return OFFLINE_EDITION || !!(inst.sw && inst.sw.total && inst.sw.saved === inst.sw.total); }
+  function device() {
+    var ua = navigator.userAgent || "";
+    var ios = /iphone|ipad|ipod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    return { ios: ios, android: /android/i.test(ua), firefox: /firefox|fxios/i.test(ua), samsung: /samsungbrowser/i.test(ua),
+      macSafari: !ios && /safari/i.test(ua) && !/chrome|chromium|crios|edg|opr|firefox/i.test(ua) && /macintosh/i.test(ua) };
+  }
+  function syncInstallButton() {
+    var b = $("#install-btn"), l = $("#install-label"), ready = offlineReady();
+    b.classList.toggle("ready", ready);
+    l.textContent = standalone() || inst.installed || OFFLINE_EDITION ? (ready ? "Offline ready" : "Saving for offline…") : "Install app";
+    b.setAttribute("aria-label", l.textContent + ". Install and offline options");
+  }
+  function installSteps() {
+    var d = device();
+    if (inst.prompt) return "<p>Your browser can install it in one step.</p>";
+    if (d.ios) return '<ol class="steps"><li>Open this page in <b>Safari</b> (or Chrome on iOS 16.4 and later).</li><li>Tap <b>Share</b> (the square with an arrow).</li><li>Tap <b>Add to Home Screen</b>, then <b>Add</b>.</li></ol>';
+    if (d.android && d.firefox) return '<ol class="steps"><li>Open the browser menu (⋮).</li><li>Tap <b>Install</b> or <b>Add to Home screen</b>.</li></ol>';
+    if (d.android) return '<ol class="steps"><li>Open the browser menu (⋮).</li><li>Tap <b>Install app</b> or <b>Add to Home screen</b>.</li></ol>';
+    if (d.macSafari) return '<ol class="steps"><li>In Safari\'s menu bar choose <b>File</b>, then <b>Add to Dock</b>.</li></ol>';
+    if (d.firefox) return "<p>Firefox on computers cannot install web apps. Use the offline edition below, or open this page in Chrome, Edge or Safari to install it.</p>";
+    return '<ol class="steps"><li>Click the <b>install</b> icon at the right of the address bar,</li><li>or open the browser menu and choose <b>Install Flame in Freefall</b> (Chrome) or <b>Apps, Install this site as an app</b> (Edge).</li></ol>';
+  }
+  function statusItem(ok, text) { return '<li class="' + (ok ? "ok" : "") + '"><svg><use href="#i-' + (ok ? "check" : "offline") + '"/></svg><span>' + text + "</span></li>"; }
+  function openInstall() {
+    var installed = standalone() || inst.installed, ready = offlineReady(), st = L.state;
+    var appLine = OFFLINE_EDITION ? "You are using the offline edition: the whole app is inside this one file." :
+      !("serviceWorker" in navigator) ? "This browser cannot save the app for offline use. Use the offline edition below." :
+      ready ? "App saved on this device (" + inst.sw.saved + " files)." : inst.sw ? "Saving app files: " + inst.sw.saved + " of " + inst.sw.total + ". Stay online for a moment." : "Preparing offline copy. Stay online for a moment.";
+    var dataLine = st.fetchedAt ? "Latest NASA data saved " + ago(st.fetchedAt) + " (" + st.items.length + " papers and reports, " + st.images.length + " images)." : "NASA data not saved yet. It is saved automatically the first time the feed loads.";
+    openDrawer('<p class="eyebrow">Works without internet</p><h2 id="drawer-title">Install for offline use</h2><div class="stack">' +
+      "<p>Install Flame in Freefall once while online. After that it opens from your home screen, dock or app list and works fully in airplane mode, using the NASA data saved on your device. It refreshes itself whenever you are back online.</p>" +
+      '<ul class="status-list">' + statusItem(ready, appLine) + statusItem(!!st.fetchedAt, dataLine) +
+      statusItem(installed || OFFLINE_EDITION, installed ? "Installed on this device." : OFFLINE_EDITION ? "No installation needed for this file." : "Not installed yet.") + "</ul>" +
+      (installed || OFFLINE_EDITION ? "" : "<h3>Install</h3>" + installSteps() + (inst.prompt ? '<div class="row"><button type="button" class="btn primary" id="do-install"><svg><use href="#i-install"/></svg>Install now</button></div>' : "")) +
+      '<h3>Check it works</h3><ol class="steps"><li>Turn on airplane mode.</li><li>Open Flame in Freefall from your home screen or app list.</li><li>Everything except the live refresh and Deep mode keeps working.</li></ol>' +
+      '<div class="row"><button type="button" class="btn" id="do-save"><svg><use href="#i-refresh"/></svg>Save latest NASA data now</button></div>' +
+      (OFFLINE_EDITION ? "" : '<h3>Offline edition</h3><p class="small">A single file with the whole app and the latest NASA report snapshot inside. Save it to any computer, phone or USB stick and open it in a browser, no internet or installation needed. Good for browsers that cannot install apps.</p>' +
+        '<div class="row" id="edition-row"><a class="btn" id="do-edition" href="flame-in-freefall-offline.html" download="flame-in-freefall-offline.html"><svg><use href="#i-install"/></svg>Download offline edition</a><span class="note" id="edition-note"></span></div>') +
+      '<p class="note">Deep mode and the live feed need a connection; Instant answers, rankings, the fire envelope, gaps and all saved data do not.</p></div>');
+    var di = $("#do-install");
+    if (di) di.addEventListener("click", function () {
+      var pr = inst.prompt; if (!pr) return;
+      inst.prompt = null;
+      pr.prompt();
+      (pr.userChoice || Promise.resolve({})).then(function (c) { if (c.outcome === "accepted") { inst.installed = true; toast("Installing Flame in Freefall"); } syncInstallButton(); closeDrawer(); });
+    });
+    $("#do-save").addEventListener("click", function () {
+      if (!navigator.onLine) { toast("You're offline. Your last saved data is in use."); return; }
+      toast("Saving the latest NASA data…");
+      L.refresh(true).then(function () { askStatus(); toast("Saved. Ready for offline use."); if (!$("#drawer").hidden && $("#do-save")) openInstall(); });
+    });
+    var ed = $("#do-edition");
+    if (ed) {
+      // The edition is generated when the site is published; say so when it is absent (local copies).
+      if (inst.edition === null) {
+        fetch("flame-in-freefall-offline.html", { method: "HEAD", cache: "no-store" }).then(function (r) { inst.edition = r.ok; }, function () { inst.edition = false; }).then(showEdition);
+      } else showEdition();
+    }
+    function showEdition() {
+      var e2 = $("#do-edition"), n2 = $("#edition-note"); if (!e2) return;
+      if (!inst.edition) { e2.setAttribute("aria-disabled", "true"); e2.classList.add("disabled"); e2.removeAttribute("href"); n2.textContent = navigator.onLine ? "Available on the published site." : "Connect to the internet to download it."; }
+    }
+  }
+  function askStatus() {
+    if (!("serviceWorker" in navigator) || OFFLINE_EDITION) return;
+    navigator.serviceWorker.ready.then(function (reg) { if (reg.active) reg.active.postMessage({ type: "status" }); });
+  }
+  window.addEventListener("beforeinstallprompt", function (e) { e.preventDefault(); inst.prompt = e; syncInstallButton(); });
+  window.addEventListener("appinstalled", function () {
+    inst.installed = true; inst.prompt = null; syncInstallButton();
+    toast("Installed. It now opens from your home screen or app list, even offline.");
+  });
+
+  function netState() {
+    var off = !navigator.onLine;
+    $("#netbar").hidden = !off;
+    if (off) $("#netbar-text").textContent = "You're offline. Everything still works with the data saved on this device" + (L.state.fetchedAt ? " (NASA data from " + ago(L.state.fetchedAt) + ")." : ".");
+  }
+  window.addEventListener("online", function () { netState(); L.refresh(false); });
+  window.addEventListener("offline", netState);
+  netState();
+  syncInstallButton();
+
+  if ("serviceWorker" in navigator && window.isSecureContext && !OFFLINE_EDITION) {
+    var reloading = false;
+    navigator.serviceWorker.addEventListener("message", function (e) {
+      if (e.data && e.data.type === "status") {
+        inst.sw = e.data; syncInstallButton();
+        var dlg = $("#drawer"); if (!dlg.hidden && $("#drawer-title") && $("#drawer-title").textContent === "Install for offline use") openInstall();
+      }
+    });
+    navigator.serviceWorker.addEventListener("controllerchange", function () { if (reloading) location.reload(); });
+    var onUpdate = function (w) {
+      $("#updatebar").hidden = false;
+      $("#update-btn").onclick = function () { reloading = true; w.postMessage({ type: "skip-waiting" }); };
+    };
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("sw.js").then(function (reg) {
+        if (reg.waiting && navigator.serviceWorker.controller) onUpdate(reg.waiting);
+        reg.addEventListener("updatefound", function () {
+          var nw = reg.installing; if (!nw) return;
+          nw.addEventListener("statechange", function () {
+            if (nw.state === "installed" && navigator.serviceWorker.controller) onUpdate(nw);
+            if (nw.state === "activated") askStatus();
+          });
+        });
+        askStatus();
+      }).catch(function () { syncInstallButton(); });
+    });
   }
 })(window.FF = window.FF || {});

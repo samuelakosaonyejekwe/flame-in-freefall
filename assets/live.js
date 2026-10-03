@@ -9,7 +9,9 @@
   "use strict";
   var NASA_OPENALEX = "I4210124779"; // National Aeronautics and Space Administration (incl. centers)
   var OA = "https://api.openalex.org/works?select=id,doi,title,publication_date,primary_location,authorships,abstract_inverted_index,cited_by_count&sort=publication_date:desc&per-page=40&filter=authorships.institutions.lineage:" + NASA_OPENALEX + ",title_and_abstract.search:";
-  var OA_QUERIES = ["microgravity AND (flame OR combustion OR fire OR smoke)", "(spacecraft OR habitat OR lunar OR \"partial gravity\") AND (fire OR flammability OR flame)"];
+  // Two focused queries; broader ones (e.g. "spacecraft AND fire") return unrelated NASA work.
+  var OA_QUERIES = ["microgravity AND (flame OR combustion OR fire OR smoke)",
+    "(flammability OR \"fire safety\" OR \"flame spread\") AND (spacecraft OR lunar OR \"reduced gravity\" OR \"partial gravity\" OR microgravity)"];
   var IMG = "https://images-api.nasa.gov/search?media_type=image&page_size=24&q=";
   var IMG_QUERIES = ["microgravity flame", "combustion integrated rack", "spacecraft fire"];
   var CACHE = "ff.live.v1", SEEN = "ff.seen.v1", MAX_AGE = 10 * 60 * 1000;
@@ -68,11 +70,11 @@
         var tk = it.title.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 80);
         if (!it.title || seenTitle.has(tk) || (it.doi && seenDoi.has(it.doi))) return;
         seenTitle.add(tk); if (it.doi) seenDoi.set(it.doi, 1);
-        it.cls = FF.engine.classify(it.title + " " + it.abstract);
+        it.cls = FF.engine.classify(it.title, it.abstract);
         out.push(it);
       });
     });
-    return out.filter(function (it) { return it.cls.relevance >= 0.25; }).sort(function (a, b) { return b.date.localeCompare(a.date); });
+    return out.filter(function (it) { return it.cls.relevant; }).sort(function (a, b) { return b.date.localeCompare(a.date); });
   }
 
   function markNew() {
@@ -114,7 +116,11 @@
       state.status.openalex.state = "ok"; state.status.openalex.at = new Date().toISOString(); state.status.openalex.count = lastOA.length;
     }).catch(function (e) { state.status.openalex.state = "err"; state.status.openalex.error = e.message; });
 
-    var pNTRS = fetchJSON("live/ntrs.json?t=" + Math.floor(Date.now() / 600000)).then(function (d) {
+    // The single-file offline edition carries its own snapshot; a file:// page cannot fetch one.
+    var snap = window.FF_SNAPSHOT && window.FF_SNAPSHOT.ntrs;
+    var getNTRS = location.protocol === "file:" && snap ? Promise.resolve(snap) :
+      fetchJSON("live/ntrs.json?t=" + Math.floor(Date.now() / 600000)).catch(function (e) { if (snap) return snap; throw e; });
+    var pNTRS = getNTRS.then(function (d) {
       lastNTRS = (d.items || []).map(fromNTRS);
       state.status.ntrs.state = "ok"; state.status.ntrs.at = d.generatedAt; state.status.ntrs.count = lastNTRS.length;
     }).catch(function (e) { state.status.ntrs.state = "err"; state.status.ntrs.error = e.message; });
@@ -128,7 +134,7 @@
           if (!href || seen.has(meta.nasa_id) || !/^https:\/\/images-assets\.nasa\.gov\//.test(href)) return;
           seen.add(meta.nasa_id);
           imgs.push({ id: meta.nasa_id, title: txt(meta.title, 140), date: (meta.date_created || "").slice(0, 10), center: meta.center || "",
-            thumb: href.replace(/~(orig|large|medium)\./, "~thumb."), page: "https://images.nasa.gov/details/" + encodeURIComponent(meta.nasa_id) });
+            thumb: href.replace(/~(orig|large|medium|small)\./, "~thumb."), page: "https://images.nasa.gov/details/" + encodeURIComponent(meta.nasa_id) });
         });
       });
       if (!imgs.length) throw new Error("no images");

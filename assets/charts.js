@@ -10,6 +10,8 @@
     });
   }
   function r1(n) { return Math.round(n * 10) / 10; }
+  // Draw charts at their on-screen width so 11px text stays 11px on phones.
+  function widthOf(el, lo, hi) { return Math.round(Math.max(lo, Math.min(hi, el.clientWidth || hi))); }
 
   /* ---------- shared tooltip ---------- */
   var tip;
@@ -23,7 +25,10 @@
   }
   function hideTip() { if (tip) tip.hidden = true; }
   // Elements with data-tip="Title|line|line" get a tooltip on hover and focus.
+  // Bound once per container, however often its contents are redrawn.
   function bindTips(root) {
+    if (!root || root.__ffTips) return;
+    root.__ffTips = true;
     function fmt(t) { var p = t.split("|"); return "<b>" + esc(p[0]) + "</b>" + p.slice(1).map(esc).join("<br>"); }
     root.addEventListener("pointermove", function (e) {
       var el = e.target.closest && e.target.closest("[data-tip]");
@@ -49,7 +54,7 @@
     { id: "cygnus", label: "Cygnus", match: /cygnus/i }
   ];
   function timeline(el, exps, opts) {
-    var x0 = 1985, x1 = 2027, W = 1000, padL = 150, padR = 16, top = 26, rowH = 16, laneGap = 12;
+    var x0 = 1985, x1 = (FF.NOW_YEAR || new Date().getFullYear()) + 1, W = 1000, padL = 150, padR = 16, top = 26, rowH = 16, laneGap = 12;
     var sx = function (y) { return padL + (Math.max(x0, Math.min(x1, y)) - x0) / (x1 - x0) * (W - padL - padR); };
     var lanes = LANES.map(function (l) { return { l: l, rows: [] }; });
     exps.forEach(function (e) {
@@ -62,7 +67,7 @@
       });
     });
     var y = top, body = "", grid = "";
-    for (var yr = 1985; yr <= 2025; yr += 5) {
+    for (var yr = x0; yr < x1; yr += 5) {
       grid += '<line x1="' + sx(yr) + '" x2="' + sx(yr) + '" y1="' + (top - 6) + '" y2="__H__"/>';
       body += '<text x="' + sx(yr) + '" y="14" text-anchor="middle">' + yr + "</text>";
     }
@@ -73,7 +78,7 @@
       ln.rows.forEach(function (r, ri) {
         r.forEach(function (b) {
           var e = b.exp, sel = opts.selected && opts.selected.indexOf(e.id) >= 0;
-          var w = Math.max(6, b.e - b.s - 2), clipped = e.years[0] < x0;
+          var w = Math.max(6, b.e - b.s - 2), clipped = e.years[0] < x0 && w > 60;
           var col = sel ? "var(--ember)" : opts.colorFor(e);
           body += '<g class="tl-bar" tabindex="0" role="button" data-exp="' + esc(e.id) + '" data-tip="' + esc(e.id + " · " + e.name + "|" + e.years[0] + (e.years[1] !== e.years[0] ? "–" + e.years[1] : "") + " · " + e.platform + "|" + e.category) + '">' +
             '<rect class="hit" x="' + b.s + '" y="' + (y + ri * rowH) + '" width="' + (w + 2) + '" height="' + rowH + '"/>' +
@@ -85,7 +90,8 @@
       y += h + laneGap;
     });
     var H = y + 4;
-    el.innerHTML = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Timeline of microgravity combustion experiments by platform, 1985 to 2026">' +
+    el.classList.add("wide");
+    el.innerHTML = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Timeline of microgravity combustion experiments by platform, ' + x0 + " to " + (x1 - 1) + '">' +
       '<g class="grid">' + grid.replace(/__H__/g, H - 6) + "</g>" + body + "</svg>";
     el.querySelectorAll("[data-exp]").forEach(function (g) {
       function go() { opts.onPick(g.getAttribute("data-exp")); }
@@ -99,7 +105,7 @@
   function heatStep(r) { return r < 0.1 ? 0 : r < 0.3 ? 1 : r < 0.5 ? 2 : r < 0.7 ? 3 : r < 0.9 ? 4 : 5; }
   function envelope(el, s, mission) {
     var mat = FF.MATERIALS.find(function (m) { return m.id === s.material; });
-    var W = 640, H = 380, pl = 46, pr = 14, pt = 12, pb = 40, fx = 50, o2a = 10, o2b = 45, nx = 50, ny = 35;
+    var W = widthOf(el, 320, 760), H = Math.round(W * 0.6), pl = 46, pr = 14, pt = 12, pb = 40, fx = 50, o2a = 10, o2b = 45, nx = 50, ny = 35;
     var sx = function (u) { return pl + u / fx * (W - pl - pr); };
     var sy = function (o) { return pt + (1 - (o - o2a) / (o2b - o2a)) * (H - pt - pb); };
     var cw = (W - pl - pr) / nx, ch = (H - pt - pb) / ny, cells = "";
@@ -119,8 +125,7 @@
     var ax = "";
     [0, 10, 20, 30, 40, 50].forEach(function (u) { ax += '<text x="' + sx(u) + '" y="' + (H - pb + 16) + '" text-anchor="middle">' + u + "</text>"; });
     [10, 15, 20, 25, 30, 35, 40, 45].forEach(function (o) { ax += '<text x="' + (pl - 8) + '" y="' + (sy(o) + 4) + '" text-anchor="end">' + o + "%</text>"; });
-    var band = mission ? '<rect x="' + sx(mission.flow[0]) + '" y="' + pt + '" width="' + (sx(mission.flow[1]) - sx(mission.flow[0])) + '" height="' + (H - pt - pb) + '" style="fill:none;stroke:var(--fg-2);stroke-width:1;stroke-dasharray:0" opacity="0.6"/>' +
-      '<text x="' + (sx(mission.flow[0]) + 4) + '" y="' + (pt + 13) + '" class="lbl-strong">ventilation range</text>' : "";
+    var band = mission ? '<rect x="' + sx(mission.flow[0]) + '" y="' + pt + '" width="' + (sx(mission.flow[1]) - sx(mission.flow[0])) + '" height="' + (H - pt - pb) + '" style="fill:none;stroke:var(--fg);stroke-width:1.5"/>' : "";
     var mx = sx(Math.min(fx, s.flow)), my = sy(Math.max(o2a, Math.min(o2b, s.o2)));
     el.innerHTML = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Flammability map: risk by oxygen percentage and flow speed for ' + esc(mat.label) + '">' +
       cells + band +
@@ -143,7 +148,7 @@
     var labels = ["<10%", "10–30%", "30–50%", "50–70%", "70–90%", ">90%"];
     return '<div class="legend" aria-label="Probability that a flame spreads">' + HEAT.map(function (c, i) {
       return '<span><i style="background:' + c + '"></i>' + labels[i] + "</span>";
-    }).join("") + '<span><i style="background:var(--fg);height:2px"></i>Flammability boundary</span><span><i style="background:var(--accent);border-radius:50%"></i>Your scenario</span></div>';
+    }).join("") + '<span><i style="background:var(--fg);height:2px"></i>Flammability boundary</span><span><i style="background:var(--accent);border-radius:50%"></i>Your scenario</span><span><i style="border:1.5px solid var(--fg);background:transparent"></i>Mission ventilation range (shown when the atmosphere matches a mission)</span></div>';
   }
 
   /* ---------- limiting O2 vs flow at four gravity levels ---------- */
@@ -155,7 +160,7 @@
   ];
   function gravityCurves(el, s) {
     var mat = FF.MATERIALS.find(function (m) { return m.id === s.material; });
-    var W = 640, H = 300, pl = 46, pr = 110, pt = 12, pb = 38, fx = 50;
+    var W = widthOf(el, 320, 760), H = Math.round(Math.max(240, W * 0.5)), pl = 46, pr = W < 420 ? 74 : 110, pt = 12, pb = 38, fx = 50;
     var all = [];
     GLEVELS.forEach(function (g) { for (var k = 0; k <= 50; k++) all.push(E.limitO2(mat, k, g.g, s.p)); });
     var lo = Math.floor(Math.min.apply(null, all.concat([s.o2])) - 1), hi = Math.ceil(Math.min(60, Math.max.apply(null, all.concat([s.o2]))) + 1);
@@ -167,9 +172,8 @@
     out += "</g>";
     for (o = Math.ceil(lo / step) * step; o <= hi; o += step) out += '<text x="' + (pl - 8) + '" y="' + (sy(o) + 4) + '" text-anchor="end">' + o + "%</text>";
     [0, 10, 20, 30, 40, 50].forEach(function (u) { out += '<text x="' + sx(u) + '" y="' + (H - pb + 16) + '" text-anchor="middle">' + u + "</text>"; });
-    out += '<line x1="' + pl + '" x2="' + (W - pr) + '" y1="' + sy(s.o2) + '" y2="' + sy(s.o2) + '" style="stroke:var(--ember);stroke-width:1.5"/>' +
-      '<text x="' + (W - pr + 6) + '" y="' + (sy(s.o2) + 4) + '" style="fill:var(--ember)">Cabin ' + r1(s.o2) + "%</text>";
-    var ends = [];
+    out += '<line x1="' + pl + '" x2="' + (W - pr) + '" y1="' + sy(s.o2) + '" y2="' + sy(s.o2) + '" style="stroke:var(--ember);stroke-width:1.5"/>';
+    var ends = [{ y: sy(s.o2), cabin: true }];
     GLEVELS.forEach(function (g) {
       var d = "";
       for (var k = 0; k <= 100; k++) { var u = k / 2; d += (k ? "L" : "M") + r1(sx(u)) + " " + r1(sy(E.limitO2(mat, u, g.g, s.p))); }
@@ -178,7 +182,12 @@
     });
     ends.sort(function (a, b) { return a.y - b.y; });
     for (var i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 13) ends[i].y = ends[i - 1].y + 13;
-    ends.forEach(function (e) { out += '<circle cx="' + (W - pr) + '" cy="' + sy(E.limitO2(mat, fx, e.g.g, s.p)) + '" r="4" style="fill:' + e.g.c + ';stroke:var(--panel);stroke-width:2"/><text class="lbl-strong" x="' + (W - pr + 8) + '" y="' + (e.y + 4) + '">' + esc(e.g.label.split(" (")[0]) + "</text>"; });
+    // push overlapping labels apart, then pull the stack back inside the plot
+    for (i = ends.length - 1; i > 0; i--) if (ends[i].y > H - pb) { ends[i].y = H - pb; if (ends[i].y - ends[i - 1].y < 13) ends[i - 1].y = ends[i].y - 13; }
+    ends.forEach(function (e) {
+      if (e.cabin) { out += '<text x="' + (W - pr + 8) + '" y="' + (e.y + 4) + '" style="fill:var(--ember)">Cabin ' + r1(s.o2) + "%</text>"; return; }
+      out += '<circle cx="' + (W - pr) + '" cy="' + sy(E.limitO2(mat, fx, e.g.g, s.p)) + '" r="4" style="fill:' + e.g.c + ';stroke:var(--panel);stroke-width:2"/><text class="lbl-strong" x="' + (W - pr + 8) + '" y="' + (e.y + 4) + '">' + esc(e.g.label.split(" (")[0]) + "</text>";
+    });
     out += '<line id="gc-x" x1="0" x2="0" y1="' + pt + '" y2="' + (H - pb) + '" style="stroke:var(--fg-2);stroke-width:1" visibility="hidden"/>';
     out += '<text x="' + ((W - pr + pl) / 2) + '" y="' + (H - 6) + '" text-anchor="middle">Forced flow speed (cm/s)</text>';
     out += '<rect class="hit" x="' + pl + '" y="' + pt + '" width="' + (W - pl - pr) + '" height="' + (H - pt - pb) + '"/>';
@@ -199,7 +208,7 @@
 
   /* ---------- columns (counts per year) ---------- */
   function columns(el, data, label) {
-    var W = 640, H = 180, pl = 30, pr = 8, pt = 18, pb = 26;
+    var W = widthOf(el, 280, 640), H = 180, pl = 30, pr = 8, pt = 18, pb = 26;
     if (!data.length) { el.innerHTML = '<p class="muted small">No data yet.</p>'; return; }
     var max = Math.max.apply(null, data.map(function (d) { return d.v; })), n = data.length;
     var bw = Math.min(24, (W - pl - pr) / n * 0.6), out = '<g class="grid">';

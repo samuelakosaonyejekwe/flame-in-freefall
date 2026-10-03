@@ -1,10 +1,12 @@
 /* Flame in Freefall: curated knowledge base.
  * Sources: public NASA summaries of microgravity combustion investigations
- * (NASA Glenn Research Center, NTRS, ISS Research Explorer, PSI).
- * Scores (impact, evidence, novelty, actionability, mission relevance) are
- * analyst-assigned editorial ratings, adjustable in the dashboard.
- * Numeric values are rounded, representative figures; verify against primary
- * sources before engineering use. */
+ * (NASA Glenn Research Center, NTRS, ISS Research Explorer).
+ * Ratings (impact, evidence, novelty, actionability, mission relevance) are
+ * editorial judgements by the project team; the dashboard lets users reweight
+ * them. Numeric values are rounded, representative figures; verify against
+ * primary sources before engineering use.
+ * Experiments still running use null as their end year; it is resolved to the
+ * current year at load (see the end of this file). */
 (function (FF) {
   "use strict";
 
@@ -81,7 +83,7 @@
       regimes: ["ug-air"], status: "Completed",
       summary: "Candle flames in orbit became small, dim, blue hemispheres. On Mir some burned for up to about 45 minutes and showed spontaneous oscillations shortly before going out." },
     { id: "MSC", name: "Microgravity Smoldering Combustion", years: [1995, 2001], platform: "Space Shuttle",
-      facility: "Middeck / GAS payloads", category: "Smoldering", pi: "A.C. Fernandez-Pello",
+      facility: "Shuttle middeck (STS-69, STS-77, STS-105, STS-108)", category: "Smoldering", pi: "A.C. Fernandez-Pello",
       fuels: "Polyurethane foam", conditions: "Air, quiescent and forced flow",
       regimes: ["ug-air"], status: "Completed",
       summary: "Measured how flameless smolder travels through foam without gravity. Smolder was slower than on Earth but self-sustaining in forced flow and produced carbon monoxide throughout." },
@@ -110,8 +112,8 @@
       fuels: "n-Heptane droplets", conditions: "He/O₂ and N₂/O₂ mixtures, varied pressure",
       regimes: ["ug-air", "ug-o2"], status: "Completed",
       summary: "Burned isolated fuel droplets with perfectly spherical flames to measure burning rates and extinction diameters across oxygen levels, diluents and pressures." },
-    { id: "FSDC", name: "Fiber-Supported Droplet Combustion", years: [1997, 1997], platform: "Space Shuttle",
-      facility: "Glovebox (USMP-4, MSL-1)", category: "Droplets & sprays", pi: "F.A. Williams",
+    { id: "FSDC", name: "Fiber-Supported Droplet Combustion", years: [1995, 1997], platform: "Space Shuttle",
+      facility: "Glovebox (USML-2, USMP-4, MSL-1)", category: "Droplets & sprays", pi: "F.A. Williams",
       fuels: "Methanol, heptane, mixtures", conditions: "Air, quiescent and slow flow",
       regimes: ["ug-air"], status: "Completed",
       summary: "Tethered droplets on fine fibers to study burning and extinction of liquid fuels, including the effect of slow convective flow on near-limit flames." },
@@ -122,9 +124,9 @@
       summary: "Examined how surrounding air co-flow controls the stability and lift-off of jet flames without buoyancy." },
     { id: "MIST", name: "Water Mist Fire-Suppression Experiment", years: [2003, 2003], platform: "Space Shuttle",
       facility: "Combustion Module-2 (STS-107)", category: "Suppression", pi: "A. Abbud-Madrid",
-      fuels: "Premixed propane–air", conditions: "Water mist, droplet sizes ~20–50 µm",
+      fuels: "Premixed propane–air", conditions: "Water mist of several droplet sizes",
       regimes: ["ug-air"], status: "Completed (partial data)",
-      summary: "Tested how fine water mist suppresses propagating flames with gravity's droplet settling removed. Part of the data reached the ground before the loss of Columbia." },
+      summary: "Tested how fine water mist suppresses propagating flames with gravity's droplet settling removed. Part of the data was downlinked before the loss of Columbia." },
     { id: "SAME", name: "Smoke Aerosol Measurement Experiment", years: [2008, 2010], platform: "ISS",
       facility: "Microgravity Science Glovebox", category: "Detection", pi: "D.L. Urban",
       fuels: "Teflon, Kapton, silicone rubber, cellulose, dibutyl phthalate", conditions: "Air, heated pyrolysis, aging chamber",
@@ -190,12 +192,12 @@
       fuels: "Hydrocarbon droplets, gaseous fuels", conditions: "Varied O₂, pressure, diluent",
       regimes: ["ug-air", "ug-o2"], status: "Completed",
       summary: "Followed up the FLEX discovery by deliberately creating long-lived cool flames from liquid and gaseous fuels to map when low-temperature burning occurs." },
-    { id: "FLARE", name: "Flammability Limits at Reduced Gravity Experiment", years: [2023, 2026], platform: "ISS",
-      facility: "JAXA Solid Combustion Experiment Module (Kibo)", category: "Material flammability", pi: "O. Fujita (JAXA)",
+    { id: "FLARE", name: "Flammability Limits at Reduced Gravity Experiment", years: [2023, null], platform: "ISS",
+      facility: "JAXA Solid Combustion Experiment Module (ISS)", category: "Material flammability", pi: "O. Fujita (JAXA)",
       fuels: "Thin solids, wire insulation", conditions: "Varied O₂ and flow",
       regimes: ["ug-air", "ug-o2"], status: "Ongoing",
       summary: "Measures the lowest oxygen at which materials keep burning in orbit to judge whether Earth-based flammability tests are conservative enough for space." },
-    { id: "SOFIE", name: "Solid Fuel Ignition and Extinction", years: [2023, 2026], platform: "ISS",
+    { id: "SOFIE", name: "Solid Fuel Ignition and Extinction", years: [2023, null], platform: "ISS",
       facility: "Combustion Integrated Rack", category: "Material flammability", pi: "NASA Glenn / university teams",
       fuels: "Plastics, fabrics, foams", conditions: "Variable pressure and O₂, including exploration atmospheres",
       regimes: ["ug-air", "ug-o2"], status: "Ongoing",
@@ -205,11 +207,11 @@
       fuels: "Thin fabrics and films", conditions: "Lunar, Martian and other partial-g levels",
       regimes: ["partial", "ground"], status: "Completed",
       summary: "Measured upward flame spread limits at gravity levels between zero and Earth's, including lunar and Martian levels, using aircraft and spinning drop-tower rigs." },
-    { id: "STD-6001", name: "NASA-STD-6001 Test 1 (upward flammability)", years: [1967, 2026], platform: "Ground laboratory",
+    { id: "STD-6001", name: "NASA-STD-6001 Test 1 (upward flammability)", years: [1998, null], platform: "Ground laboratory",
       facility: "NASA White Sands Test Facility and certified labs", category: "Standards", pi: "NASA materials community",
       fuels: "All crew-cabin materials", conditions: "Worst-case use atmosphere, 1 g, upward",
       regimes: ["ground"], status: "In use",
-      summary: "The pass/fail screen for spacecraft materials: a sample is ignited at the bottom in the worst-case atmosphere and must self-extinguish within 15 cm (6 in) without igniting material below." },
+      summary: "The pass/fail screen for spacecraft materials, continuing the materials testing NASA began after the 1967 Apollo 1 fire. A sample is ignited at the bottom in the worst-case atmosphere and must self-extinguish within 15 cm (6 in) without igniting material below." },
     { id: "EXPLO-ATM", name: "Exploration atmosphere flammability testing", years: [2006, 2015], platform: "Ground laboratory",
       facility: "NASA WSTF and GRC test chambers", category: "Material flammability", pi: "NASA materials community",
       fuels: "Fabrics, foams, plastics", conditions: "Reduced pressure (~56–70 kPa) with 26.5–34% O₂",
@@ -226,7 +228,7 @@
     { id: "MIR1997", year: 1997, name: "Mir oxygen generator fire",
       text: "A solid-fuel oxygen candle burned out of control on the Mir station, filling it with smoke. The crew of six fought it with extinguishers and masks. Smoke spread through modules far faster than crews expected." },
     { id: "ISS2006", year: 2006, name: "ISS Elektron overheat",
-      text: "The Russian Elektron oxygen generator overheated and released irritating fumes, prompting the station's first declared fire emergency. Crew response procedures worked and no one was hurt." }
+      text: "The Russian Elektron oxygen generator overheated and released irritating fumes, prompting an emergency response. The crew's procedures worked and no one was hurt." }
   ];
 
   // Findings: the units the dashboard ranks.
@@ -323,7 +325,7 @@
       action: "Apply conservative wire derating and current protection; prefer low-flammability insulation in enriched atmospheres.",
       hazards: ["ignition", "spread"], regimes: ["ug-air", "ug-o2"], rel: [3, 3, 3, 3], impact: 5, evidence: 3, novelty: 3, action_s: 5 },
     { id: "F19", exp: ["MIST"], title: "Fine water mist suppresses flames efficiently",
-      text: "Fine mists (on the order of 20–30 µm droplets) were most effective at suppressing propagating premixed propane flames; microgravity removed droplet settling, isolating the physics.",
+      text: "Finer mists suppressed propagating premixed propane flames more effectively than coarser ones, consistent with models that predict an optimum droplet size of a few tens of micrometres; microgravity removed droplet settling, isolating the physics.",
       plain: "A fine water fog can put out flames with little water.",
       action: "Consider fine water mist for portable extinguishers where CO₂ build-up in a closed cabin is a concern.",
       hazards: ["suppression"], regimes: ["ug-air"], rel: [3, 3, 2, 2], impact: 4, evidence: 3, novelty: 3, action_s: 4 },
@@ -415,4 +417,12 @@
     "How should smoke detectors be designed for Mars missions?",
     "What are the biggest research gaps?"
   ];
+
+  // Resolve open-ended (ongoing) experiments to the current year so no
+  // hardcoded year goes stale.
+  FF.NOW_YEAR = new Date().getFullYear();
+  FF.EXPERIMENTS.forEach(function (e) {
+    e.ongoing = e.years[1] == null;
+    if (e.ongoing) e.years = [e.years[0], Math.max(e.years[0], FF.NOW_YEAR)];
+  });
 })(window.FF = window.FF || {});
