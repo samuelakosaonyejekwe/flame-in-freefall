@@ -809,7 +809,7 @@
       var b = cv.getBoundingClientRect(), w = b.width, h = b.height, g = flameG, sg = Math.sqrt(g);
       cx2.clearRect(0, 0, w, h);
       var base = Math.min(w, h) * 0.15, el2 = 1 + 1.9 * sg, flick = g * (Math.sin(t * 0.011) * 0.06 + Math.sin(t * 0.0173) * 0.04 + Math.sin(t * 0.031) * 0.02);
-      var cx = w / 2, cy = h * 0.6, sway = g * Math.sin(t * 0.0047) * base * 0.06;
+      var cx = w / 2, cy = h * 0.5, sway = g * Math.sin(t * 0.0047) * base * 0.06;
       cx2.globalCompositeOperation = "lighter";
       // outer blue envelope
       layer(cx + sway, cy - (el2 - 1) * base * 0.55, base * 1.25, el2 * (1 + flick), [[0, "rgba(60,120,255,0.0)"], [0.55, "rgba(70,130,255," + (0.28 - 0.12 * sg) + ")"], [0.8, "rgba(40,90,220," + (0.22 - 0.1 * sg) + ")"], [1, "rgba(20,40,120,0)"]]);
@@ -820,7 +820,7 @@
       layer(cx, cy + base * 0.25, base * 0.7, 0.55, [[0, "rgba(120,170,255,0)"], [0.7, "rgba(110,160,255," + (0.35 - 0.1 * sg) + ")"], [1, "rgba(40,80,200,0)"]]);
       cx2.globalCompositeOperation = "source-over";
       cx2.strokeStyle = "rgba(30,30,30,0.9)"; cx2.lineWidth = 2.5; cx2.beginPath(); cx2.moveTo(cx, cy + base * 0.55); cx2.lineTo(cx, cy + base * 0.15); cx2.stroke();
-      cx2.fillStyle = "rgba(220,225,235,0.18)"; cx2.fillRect(cx - base * 0.35, cy + base * 0.55, base * 0.7, h);
+      cx2.fillStyle = "rgba(220,225,235,0.14)"; cx2.fillRect(cx - base * 0.3, cy + base * 0.55, base * 0.6, Math.min(base * 1.1, h * 0.72 - cy - base * 0.55));
     }
     function layer(x, y, r, sy, stops) {
       cx2.save(); cx2.translate(x, y); cx2.scale(1, sy);
