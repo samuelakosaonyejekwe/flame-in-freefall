@@ -11,17 +11,18 @@ Fire safety insights from NASA microgravity combustion data. Built for the 2026 
 - **Experiments**: NASA and partner investigations, from drop towers to Saffire fires on Cygnus, with a timeline, search and side-by-side comparison.
 - **Fire envelope**: a screening flammability model across oxygen, pressure, gravity and ventilation. It flags the "hidden-risk zone", where a material passes the 1 g upward test but can burn in microgravity or partial gravity.
 - **Ask FlameMind**: questions answered with citations, worked out on the device. Nothing you type leaves it, and it works offline.
-- **Live NASA feed**: the newest NASA-affiliated research and imagery, tagged by hazard and mission.
+- **Live research feed**: the newest research on fire in space, from NASA and the wider community, plus NASA imagery, tagged by hazard and mission.
 - **Research gaps**: an evidence coverage matrix (hazard × conditions) with prioritized research questions.
 
 ## Always current, independent of any personal machine
 
 The site is static and hosted on GitHub Pages.
 
-- Every visitor's browser fetches **OpenAlex** (NASA-affiliated papers) and the **NASA Image and Video Library** directly on each visit, and again every 15 minutes while the page is open.
-- The **NASA Technical Reports Server** does not accept browser requests. A scheduled GitHub Actions run fetches it every hour and republishes the site. If NTRS is down, the snapshot already published is kept.
+- Every visitor's browser reads three public APIs directly: **OpenAlex** (NASA-affiliated papers), **Crossref** (journal and conference papers on fire in space, including NASA conference papers also filed in NTRS) and the **NASA Image and Video Library**. This live path depends on no scheduler, no GitHub job and no personal computer.
+- Each source refreshes on its own interval while the page is open (OpenAlex hourly, Crossref every 30 minutes, images every 6 hours) and keeps its own saved copy, so a failing or rate-limited source never empties the feed.
+- The **NASA Technical Reports Server** does not accept browser requests (and public CORS relays proved unreliable), so it is a **bonus snapshot**: a GitHub Actions build fetches it on every update and hourly when GitHub's scheduler fires. GitHub may delay or skip scheduled runs, which is why the feed's freshness does not depend on it. If NTRS is down, the snapshot already published is kept.
 - GitHub pauses scheduled workflows in public repositories after 60 days without repository activity. Each scheduled run calls the workflow "enable" endpoint, without creating commits; maintainers of keepalive tools report that this resets the 60-day counter.
-- **Safety net:** if the schedule ever pauses anyway, the Live NASA feed flags the NTRS snapshot as older than expected. OpenAlex and NASA Images stay live regardless, and running `gh workflow enable Deploy` (or any push) restores the refresh.
+- **Safety net:** if the schedule ever pauses anyway, the Live research feed flags the NTRS snapshot as older than expected. OpenAlex, Crossref and NASA Images stay live regardless, and running `gh workflow enable Deploy` (or any push) restores the refresh.
 
 ## Install and offline use
 
@@ -43,7 +44,7 @@ manifest.webmanifest     install metadata (icons, shortcuts)
 sw.js                    offline engine (precache, saved data, image cache, updates)
 assets/data.js           curated knowledge base: experiments, findings, incidents, glossary
 assets/engine.js         analysis engine: BM25 retrieval, ranking, flammability model, gaps, classifier
-assets/live.js           live data: OpenAlex, NASA Images, NTRS snapshot
+assets/live.js           live data: OpenAlex, Crossref, NASA Images, NTRS snapshot
 assets/charts.js         dependency-free SVG charts
 assets/app.js            views, interactions, install and offline features
 assets/fonts/            self-hosted fonts and their SIL Open Font License texts

@@ -52,6 +52,14 @@
   }
   function pct(n) { return n > 0.995 ? ">99%" : n < 0.005 ? "<1%" : Math.round(n * 100) + "%"; }
   function r1(n) { return (Math.round(n * 10) / 10).toFixed(1); }
+  function friendlyError(e) {
+    e = String(e || "");
+    if (/429/.test(e)) return "busy, rate limit reached";
+    if (/abort|timeout/i.test(e)) return "timed out";
+    if (/Failed to fetch|NetworkError|Load failed/i.test(e)) return "could not connect";
+    if (/HTTP 5\d\d/.test(e)) return "service error";
+    return e || "error";
+  }
   function liveById(uid) { return L.state.items.find(function (it) { return it.uid === uid; }); }
 
   // Minimal, safe markdown: escape first, then **bold**, bullets, and [ID] citations.
@@ -165,7 +173,7 @@
 
   function openLive(it) {
     var dg = L.digest(it);
-    openDrawer('<p class="eyebrow">' + esc(it.source === "ntrs" ? "NASA Technical Reports Server" : "OpenAlex · NASA-affiliated") + " · " + esc(it.date) + '</p><h2 id="drawer-title" style="font-size:22px">' + esc(it.title) + "</h2>" +
+    openDrawer('<p class="eyebrow">' + esc(it.source === "ntrs" ? "NASA Technical Reports Server" : it.source === "crossref" ? "Crossref" : "OpenAlex · NASA-affiliated") + " · " + esc(it.date) + '</p><h2 id="drawer-title" style="font-size:22px">' + esc(it.title) + "</h2>" +
       '<div class="stack">' + (it.authors.length ? '<p class="muted small">' + esc(it.authors.join(", ")) + "</p>" : "") +
       (dg ? '<div class="callout info"><b>Key points (auto-extracted):</b> ' + esc(dg) + "</div>" : "") +
       (it.abstract ? "<p>" + esc(it.abstract) + "</p>" : '<p class="muted">No abstract available.</p>') +
@@ -212,7 +220,7 @@
         "<h1>Fire behaves differently <em>in freefall</em></h1>" +
         '<p class="lede">Decades of NASA microgravity combustion experiments, summarized, ranked and interpreted into fire safety actions for <b>' + esc(m.label) + "</b>.</p>" +
         '<p class="small muted">' + esc(m.note) + "</p>" +
-        '<div class="row"><a class="btn primary" href="#ask"><svg><use href="#i-ask"/></svg>Ask FlameMind</a><a class="btn" href="#envelope"><svg><use href="#i-env"/></svg>Check a material</a><a class="btn" href="#live"><svg><use href="#i-live"/></svg>Live NASA feed</a></div></div>' +
+        '<div class="row"><a class="btn primary" href="#ask"><svg><use href="#i-ask"/></svg>Ask FlameMind</a><a class="btn" href="#envelope"><svg><use href="#i-env"/></svg>Check a material</a><a class="btn" href="#live"><svg><use href="#i-live"/></svg>Live research feed</a></div></div>' +
         '<div class="hero-stage"><canvas id="flame" aria-label="Animated candle flame changing shape with gravity" role="img"></canvas>' +
           '<p class="hero-cap">Candle flame shape vs gravity. In orbit (CFM on Mir) flames turn into dim blue spheres.</p>' +
           '<div class="hero-ctl"><div class="row"><label for="g-slider">Gravity</label><output id="g-out">0.00 g · orbit</output></div>' +
@@ -222,7 +230,7 @@
         stat("Experiments & campaigns", FF.EXPERIMENTS.length, "drop tower to Cygnus") +
         stat("Ranked findings", FF.FINDINGS.length, "scored for " + m.label.split(" (")[0]) +
         stat("Years of microgravity research", (FF.NOW_YEAR - minY), "since " + minY) +
-        stat("New NASA papers, 12 months", L.state.items.length ? recent : "…", L.state.fetchedAt ? "updated " + ago(L.state.fetchedAt) : "loading live feed") +
+        stat("New papers, 12 months", L.state.items.length ? recent : "…", L.state.fetchedAt ? "updated " + ago(L.state.fetchedAt) : "loading live feed") +
       "</div>" +
       '<div class="grid">' +
         '<section class="panel span-7"><div class="panel-head"><div><h2>Top findings for ' + esc(m.label) + '</h2><p>Ranked by safety impact, evidence, mission fit, actionability and novelty.</p></div><a class="btn" href="#insights">All insights</a></div>' +
@@ -238,7 +246,7 @@
           var on = !!checks[x.f.id];
           return '<label class="check' + (on ? " done" : "") + '"><input type="checkbox" id="chk-' + x.f.id + '" data-chk="' + x.f.id + '"' + (on ? " checked" : "") + "><span>" + esc(x.f.action) + ' <button type="button" class="chip cite" data-cite="' + x.f.id + '">' + x.f.id + "</button></span></label>";
         }).join("") + "</div></section>" +
-        '<section class="panel span-6"><div class="panel-head"><div><h2>Latest from NASA</h2><p>Live from OpenAlex and the NASA Technical Reports Server.</p></div><a class="btn" href="#live">Open feed</a></div>' +
+        '<section class="panel span-6"><div class="panel-head"><div><h2>Latest research</h2><p>Live from OpenAlex, Crossref and the NASA Technical Reports Server.</p></div><a class="btn" href="#live">Open feed</a></div>' +
         '<ul class="feed" id="brief-feed">' + feedItems(L.state.items.slice(0, 4), true) + "</ul></section>" +
         '<section class="panel span-12"><div class="panel-head"><div><h2>Lessons from real incidents</h2><p>Operational events that shaped today\'s fire safety rules.</p></div></div>' +
         '<div class="incidents">' + FF.INCIDENTS.map(function (i) { return '<article class="card" style="cursor:default"><div class="top"><span class="id">' + esc(i.name) + '</span><span class="yrs">' + i.year + "</span></div><p style=\"-webkit-line-clamp:unset\">" + esc(i.text) + "</p></article>"; }).join("") + "</div></section>" +
@@ -587,18 +595,18 @@
     st.items.forEach(function (it) { var y = it.date.slice(0, 4); if (y >= "2010") byYear[y] = (byYear[y] || 0) + 1; });
     var years = Object.keys(byYear).sort().map(function (y) { return { k: y, v: byYear[y] }; });
     el.innerHTML =
-      '<div class="view-head"><div><p class="eyebrow">Always current</p><h1>Live NASA feed</h1><p>New NASA research on fire in space, fetched by your browser straight from NASA and open scholarly sources. FlameMind tags each item by hazard and mission and adds it to its evidence.</p></div>' +
+      '<div class="view-head"><div><p class="eyebrow">Always current</p><h1>Live research feed</h1><p>The newest research on fire in space, from NASA and the wider research community, fetched by your browser straight from public sources. FlameMind tags each item by hazard and mission and adds it to its evidence.</p></div>' +
       '<button type="button" class="btn" id="live-refresh"><svg><use href="#i-refresh"/></svg>Refresh now</button></div>' +
       '<div class="src-row">' + Object.keys(st.status).map(function (k) {
         var s = st.status[k], cls = s.state === "ok" ? "ok" : s.state === "err" ? "err" : s.state === "cached" ? "" : "wait";
         var stale = k === "ntrs" && s.at && Date.now() - Date.parse(s.at) > 36 * 3600 * 1000;
         if (stale) cls = "wait";
         return '<div class="src"><b><span class="status-dot ' + cls + '"></span>' + esc(s.label) + '</b><span class="muted">' + esc(s.mode) + "</span><span>" +
-          (s.state === "wait" ? "Checking…" : s.state === "err" ? "Unavailable now (" + esc(s.error || "error") + "), showing saved copy" : s.count + " items · updated " + ago(s.at)) + "</span>" +
-          (stale ? '<span class="note">Older than expected. The hourly refresh may be paused; the other two sources stay live.</span>' : "") + "</div>";
+          (s.state === "wait" ? "Checking…" : s.state === "err" ? "Unavailable now (" + esc(friendlyError(s.error)) + ")" + (s.count ? ", showing the copy saved " + ago(s.at) : ", nothing saved yet") : s.count + " items · updated " + ago(s.at)) + "</span>" +
+          (stale ? '<span class="note">Older than expected; this snapshot depends on the site\'s build. The live sources keep the feed current regardless.</span>' : "") + "</div>";
       }).join("") + "</div>" +
       '<div class="grid"><section class="panel span-8"><div class="panel-head"><div><h2>Latest research</h2><p>' + items.length + " of " + st.items.length + " items" + (st.newCount ? " · " + st.newCount + " new since you last opened the feed" : "") + "</p></div>" +
-      '<div class="filters"><label class="sr" for="lf-src">Source</label><select id="lf-src"><option value="all">All sources</option><option value="ntrs"' + (f.source === "ntrs" ? " selected" : "") + '>NASA NTRS</option><option value="openalex"' + (f.source === "openalex" ? " selected" : "") + ">NASA-affiliated papers</option></select>" +
+      '<div class="filters"><label class="sr" for="lf-src">Source</label><select id="lf-src"><option value="all">All sources</option><option value="ntrs"' + (f.source === "ntrs" ? " selected" : "") + '>NASA NTRS</option><option value="openalex"' + (f.source === "openalex" ? " selected" : "") + ">NASA-affiliated papers</option>" + '<option value="crossref"' + (f.source === "crossref" ? " selected" : "") + ">Journal and conference papers</option></select>" +
       '<label class="sr" for="lf-hz">Hazard</label><select id="lf-hz"><option value="">All hazards</option>' + FF.HAZARDS.map(function (h) { return '<option value="' + h.id + '"' + (f.hazard === h.id ? " selected" : "") + ">" + esc(h.label) + "</option>"; }).join("") + "</select>" +
       '<label class="chip"><input type="checkbox" id="lf-mine"' + (f.mine ? " checked" : "") + "> " + esc(m.label.split(" (")[0]) + ' only</label><label class="chip"><input type="checkbox" id="lf-new"' + (f.onlyNew ? " checked" : "") + "> New only</label></div></div>" +
       '<ul class="feed" id="live-list">' + feedItems(items.slice(0, f.show)) + "</ul>" +
@@ -686,8 +694,8 @@
       '<div class="grid">' +
       '<section class="panel span-6"><h2>Sources</h2><div class="stack small" style="margin-top:10px">' +
       "<p><b>Curated knowledge base.</b> " + FF.EXPERIMENTS.length + " NASA and partner investigations (" + Math.min.apply(null, FF.EXPERIMENTS.map(function (e) { return e.years[0]; })) + "–" + FF.NOW_YEAR + ") and " + BASE_FINDINGS.length + " findings distilled from public NASA summaries of SSCE, BASS, Saffire, FLEX, SOFBALL, LSP, SAME, MIST, ACME, FLARE, SoFIE and more, plus " + FF.INCIDENTS.length + " operational incidents.</p>" +
-      '<p><b>Live, in your browser:</b> NASA-affiliated publications from <a href="https://openalex.org" target="_blank" rel="noopener noreferrer">OpenAlex</a> and imagery from the <a href="https://images.nasa.gov" target="_blank" rel="noopener noreferrer">NASA Image and Video Library</a>, requested directly by each visitor\'s browser.</p>' +
-      '<p><b>Scheduled snapshot:</b> the <a href="https://ntrs.nasa.gov" target="_blank" rel="noopener noreferrer">NASA Technical Reports Server</a>, which does not accept browser requests, is fetched every hour by an automated build on GitHub\'s servers and published with the site. No personal computer is involved.</p>' +
+      '<p><b>Live, in your browser:</b> NASA-affiliated publications from <a href="https://openalex.org" target="_blank" rel="noopener noreferrer">OpenAlex</a>, journal and conference papers from <a href="https://www.crossref.org" target="_blank" rel="noopener noreferrer">Crossref</a>, and imagery from the <a href="https://images.nasa.gov" target="_blank" rel="noopener noreferrer">NASA Image and Video Library</a>, requested directly by each visitor\'s browser. Freshness depends on no scheduler and no personal computer.</p>' +
+      '<p><b>Bonus snapshot:</b> the <a href="https://ntrs.nasa.gov" target="_blank" rel="noopener noreferrer">NASA Technical Reports Server</a> does not accept browser requests, so the site\'s build adds a copy when it runs (hourly when GitHub\'s scheduler fires, and on every update). The live sources keep the feed current without it.</p>' +
       '<p><b>Verify before use.</b> Impact, novelty and actionability are rubric-based judgements, and the screening model is checked against NASA observations but is not a certification tool. Check primary sources in NTRS before engineering decisions.</p></div></section>' +
       '<section class="panel span-6"><h2>How ranking works</h2><div class="stack small" style="margin-top:10px">' +
       "<p><b>Evidence strength</b> is computed, not hand-rated: the best supporting test platform (spacecraft-scale fire or standardized ground testing 4, long-duration orbital 3, short-duration microgravity 2), +1 when two or more investigations agree, −1 when all are still preliminary; documented incidents score 5.</p>" +
@@ -701,7 +709,7 @@
       '<div class="row"><input type="file" id="imp-file" accept="application/json,.json" class="sr"><label class="btn" for="imp-file">Choose JSON file</label><button type="button" class="btn" id="imp-clear"' + (imp.length ? "" : " disabled") + ">Remove imported (" + imp.length + ")</button></div>" +
       '<p class="note">Files are read locally and validated; nothing is uploaded. A new import replaces the previous one.</p></div></section>' +
       '<section class="panel span-6"><h2>Privacy, security and offline use</h2><div class="stack small" style="margin-top:10px">' +
-      "<ul style=\"margin:0;padding-left:18px;display:grid;gap:6px\"><li>No accounts, cookies or analytics. Preferences stay in your browser.</li><li>All code and fonts come from this site; no third-party scripts. A strict Content Security Policy allows connections only to NASA's image library and OpenAlex.</li><li>Questions you ask are answered on this device and never sent anywhere.</li><li>All external text is escaped before display; imported files are schema-checked.</li><li>Installable as an app and works offline with the last saved data.</li></ul></div></section>" +
+      "<ul style=\"margin:0;padding-left:18px;display:grid;gap:6px\"><li>No accounts, cookies or analytics. Preferences stay in your browser.</li><li>All code and fonts come from this site; no third-party scripts. A strict Content Security Policy allows connections only to NASA's image library, OpenAlex and Crossref.</li><li>Questions you ask are answered on this device and never sent anywhere.</li><li>All external text is escaped before display; imported files are schema-checked.</li><li>Installable as an app and works offline with the last saved data.</li></ul></div></section>" +
       '<section class="panel span-6"><h2>Rating rubric</h2><div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Score</th><th>Safety impact</th><th>Novelty</th><th>Actionability</th></tr></thead><tbody>' +
       [5, 4, 3, 2, 1].map(function (n) { return '<tr><td class="num">' + n + "</td><td>" + esc(FF.RUBRIC.impact[n - 1]) + "</td><td>" + esc(FF.RUBRIC.novelty[n - 1]) + "</td><td>" + esc(FF.RUBRIC.action_s[n - 1]) + "</td></tr>"; }).join("") +
       '</tbody></table></div><p class="note" style="margin-top:8px">Mission fit: ' + FF.RUBRIC.rel.map(function (t, i) { return i + " = " + esc(t.toLowerCase()); }).join("; ") + ".</p></section>" +

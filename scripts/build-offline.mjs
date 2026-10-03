@@ -52,7 +52,7 @@ const csp = [
   "style-src 'unsafe-inline'",
   "font-src data:",
   "img-src data: https://images-assets.nasa.gov",
-  "connect-src https://api.openalex.org https://images-api.nasa.gov",
+  "connect-src https://api.openalex.org https://api.crossref.org https://images-api.nasa.gov",
   "base-uri 'none'", "form-action 'none'", "object-src 'none'"
 ].join("; ");
 html = html.replace(/<meta http-equiv="Content-Security-Policy" content="[^"]*">/, () => `<meta http-equiv="Content-Security-Policy" content="${csp}">`);

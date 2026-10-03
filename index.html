@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Flame in Freefall</title>
 <meta name="description" content="Interactive dashboard that summarizes, ranks and interprets NASA microgravity combustion findings into fire safety insights for the Moon, Mars and beyond. Installable and works offline.">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https://images-assets.nasa.gov; connect-src 'self' https://api.openalex.org https://images-api.nasa.gov; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https://images-assets.nasa.gov; connect-src 'self' https://api.openalex.org https://api.crossref.org https://images-api.nasa.gov; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <link rel="canonical" href="__SITE_URL__">
 <meta property="og:type" content="website">
@@ -29,6 +29,7 @@
 <link rel="preload" href="assets/fonts/ibm-plex-sans-var.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/barlow-condensed-700.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preconnect" href="https://api.openalex.org" crossorigin>
+<link rel="preconnect" href="https://api.crossref.org" crossorigin>
 <link rel="stylesheet" href="assets/styles.css">
 <script src="assets/theme.js"></script>
 </head>
@@ -83,7 +84,7 @@
     <a href="#experiments" data-view="experiments"><svg><use href="#i-exp"/></svg><span>Experiments</span></a>
     <a href="#envelope" data-view="envelope"><svg><use href="#i-env"/></svg><span>Fire envelope</span></a>
     <a href="#ask" data-view="ask"><svg><use href="#i-ask"/></svg><span>Ask FlameMind</span></a>
-    <a href="#live" data-view="live"><svg><use href="#i-live"/></svg><span>Live NASA feed</span><i class="dot" id="live-dot" hidden></i></a>
+    <a href="#live" data-view="live"><svg><use href="#i-live"/></svg><span>Live research feed</span><i class="dot" id="live-dot" hidden></i></a>
     <a href="#gaps" data-view="gaps"><svg><use href="#i-gap"/></svg><span>Research gaps</span></a>
     <a href="#data" data-view="data"><svg><use href="#i-data"/></svg><span>Data &amp; method</span></a>
   </nav>
@@ -116,7 +117,7 @@
 <div class="sheet" id="more-sheet" role="dialog" aria-modal="true" aria-label="More sections" hidden>
   <div class="sheet-panel">
     <a href="#experiments" data-view="experiments"><svg><use href="#i-exp"/></svg>Experiments</a>
-    <a href="#live" data-view="live"><svg><use href="#i-live"/></svg>Live NASA feed</a>
+    <a href="#live" data-view="live"><svg><use href="#i-live"/></svg>Live research feed</a>
     <a href="#gaps" data-view="gaps"><svg><use href="#i-gap"/></svg>Research gaps</a>
     <a href="#data" data-view="data"><svg><use href="#i-data"/></svg>Data &amp; method</a>
     <button type="button" id="install-btn-2"><svg><use href="#i-install"/></svg>Install &amp; offline</button>
