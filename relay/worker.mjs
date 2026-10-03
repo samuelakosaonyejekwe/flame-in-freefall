@@ -57,6 +57,15 @@ export default {
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
     if (request.method !== "GET") return respond(JSON.stringify({ error: "method not allowed" }), 405);
 
+    if (url.pathname === "/") {
+      return respond(JSON.stringify({
+        name: "Flame in Freefall data relay",
+        purpose: "Serves NASA data to the Flame in Freefall dashboard: NASA technical reports (which block browser requests), NASA-affiliated papers and NASA-funded papers, refreshed hourly.",
+        dashboard: "https://samuelakosaonyejekwe.github.io/flame-in-freefall/",
+        endpoints: ["/v1/ntrs", "/v1/openalex", "/v1/crossref", "/v1/health"]
+      }, null, 2), 200, { "Cache-Control": "public, max-age=3600" });
+    }
+
     if (url.pathname === "/v1/health") {
       const ages = {};
       for (const s of SOURCES) {
