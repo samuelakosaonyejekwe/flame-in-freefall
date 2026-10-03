@@ -12,7 +12,7 @@ crons = ["7 * * * *"]
 # and put the id it prints here.
 [[kv_namespaces]]
 binding = "DATA"
-id = "__KV_NAMESPACE_ID__"
+id = "06d60870315e4ce1b34e245476e6abad"
 
 # Optional: a free OpenAlex API key gives the relay its own OpenAlex budget.
 # Set it as a secret, never in this file:
