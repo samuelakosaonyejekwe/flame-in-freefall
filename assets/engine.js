@@ -92,7 +92,38 @@
   function reindex() {
     byId = {};
     FF.EXPERIMENTS.forEach(function (e) { byId[e.id] = e; });
-    FF.FINDINGS.forEach(function (f) { byId[f.id] = f; });
+    FF.FINDINGS.forEach(function (f) {
+      byId[f.id] = f;
+      var d = deriveEvidence(f);
+      if (d) { f.evidence = d.score; f.evidenceWhy = d.why; }
+      else if (!f.evidence) { f.evidence = 2; f.evidenceWhy = ["No linked experiment: default rating"]; }
+    });
+  }
+
+  /* ---------- evidence strength, computed ----------
+   * From the linked experiments, not hand-rated:
+   *   base = best test platform: spacecraft-scale fire (Cygnus) or standardized
+   *          ground testing 4; long-duration orbital (ISS, Shuttle, Mir) 3;
+   *          short-duration microgravity (drop tower, aircraft, rocket) 2
+   *   +1 when two or more investigations support the finding
+   *   -1 when every supporting investigation is still ongoing (preliminary)
+   *   documented operational incidents score 5. Result clamped to 1-5. */
+  var TIERS = [
+    { re: /cygnus/i, t: 4, why: "spacecraft-scale fire tests" },
+    { re: /ground/i, t: 4, why: "standardized ground testing" },
+    { re: /iss|shuttle|mir/i, t: 3, why: "long-duration orbital tests" },
+    { re: /./, t: 2, why: "short-duration microgravity tests" }
+  ];
+  function deriveEvidence(f) {
+    if (f.incident) return { score: 5, why: ["Documented operational incident"] };
+    var ex = (f.exp || []).map(function (id) { return byId[id]; }).filter(Boolean);
+    if (!ex.length) return null;
+    var best = null;
+    ex.forEach(function (e) { var r = TIERS.find(function (x) { return x.re.test(e.platform); }); if (!best || r.t > best.t) best = r; });
+    var score = best.t, why = [best.why + " (" + best.t + ")"];
+    if (ex.length >= 2) { score += 1; why.push("supported by " + ex.length + " investigations (+1)"); }
+    if (ex.every(function (e) { return /ongoing/i.test(e.status); })) { score -= 1; why.push("results still preliminary (-1)"); }
+    return { score: Math.max(1, Math.min(5, score)), why: why };
   }
   function expName(id) { var e = byId[id]; return e ? e.name : id; }
 
@@ -163,14 +194,64 @@
     var us = uStar(mat), ub = buoyantU(g);
     return ub >= us ? 0 : Math.sqrt(us * us - ub * ub);
   }
+  // Spread of the limiting O2 when every model coefficient is varied over its
+  // stated uncertainty (all 2^6 corner combinations).
+  var UNCERTAINTY = { uStarThin: 0.25, uStarThick: 0.25, aLow: 0.25, kP: 0.5, ub1g: 0.2, dmu: 0.5 };
+  function limitRange(mat, u, g, p) {
+    var keys = Object.keys(UNCERTAINTY), saved = {}, lo = Infinity, hi = -Infinity;
+    keys.forEach(function (k) { if (k !== "dmu") saved[k] = MODEL[k]; });
+    for (var mask = 0; mask < (1 << keys.length); mask++) {
+      var m2 = mat;
+      keys.forEach(function (k, i) {
+        var f = 1 + ((mask >> i) & 1 ? 1 : -1) * UNCERTAINTY[k];
+        if (k === "dmu") m2 = { moc1g: mat.moc1g, dmu: mat.dmu * f, thick: mat.thick };
+        else MODEL[k] = saved[k] * f;
+      });
+      var v = limitO2(m2, u, g, p);
+      if (v < lo) lo = v; if (v > hi) hi = v;
+    }
+    keys.forEach(function (k) { if (k !== "dmu") MODEL[k] = saved[k]; });
+    return [lo, hi];
+  }
+
   function assess(s) {
     var mat = FF.MATERIALS.find(function (m) { return m.id === s.material; }) || FF.MATERIALS[1];
     var lim = limitO2(mat, s.flow, s.g, s.p), r = riskOf(s.o2, lim);
     var wf = worstFlow(mat, s.g), wlim = limitO2(mat, wf, s.g, s.p), wr = riskOf(s.o2, wlim);
     var test = limitO2(mat, 0, 1, s.p);           // 1 g upward screen at this atmosphere
     var hidden = s.o2 < test && s.o2 > wlim;        // passes 1 g screen, can burn here at worst flow
-    return { mat: mat, limit: lim, margin: s.o2 - lim, risk: r, band: riskBand(r), worstFlow: wf, worstLimit: wlim,
+    var rng = limitRange(mat, s.flow, s.g, s.p);
+    return { mat: mat, limit: lim, limitLo: rng[0], limitHi: rng[1], riskLo: riskOf(s.o2, rng[1]), riskHi: riskOf(s.o2, rng[0]),
+      margin: s.o2 - lim, risk: r, band: riskBand(r), worstFlow: wf, worstLimit: wlim,
       worstRisk: wr, worstBand: riskBand(wr), testLimit: test, hidden: hidden, ub: buoyantU(s.g) };
+  }
+
+  /* ---------- model checks ----------
+   * Calibration checks hold by construction; independent checks compare the
+   * model with NASA observations it was not fitted to. Shown in Data & method
+   * and run on every page load, so a coefficient change that breaks one shows. */
+  function mat(id) { return FF.MATERIALS.find(function (m) { return m.id === id; }); }
+  function modelChecks() {
+    var paper = mat("paper"), sibal = mat("sibal"), nomex = mat("nomex");
+    var c = [];
+    function add(kind, claim, source, pass, detail) { c.push({ kind: kind, claim: claim, source: source, pass: !!pass, detail: detail }); }
+    var calOk = FF.MATERIALS.every(function (m) { return Math.abs(limitO2(m, 0, 1, MODEL.pRef) - m.moc1g) < 1e-9; });
+    add("Calibration", "Quiescent 1 g at sea-level pressure returns each material's upward-spread limit", "STD-6001", calOk, "all " + FF.MATERIALS.length + " materials");
+    add("Calibration", "Thin fuels are most flammable near " + MODEL.uStarThin + " cm/s in orbit (5–10 cm/s observed)", "F01", worstFlow(paper, 0) >= 5 && worstFlow(paper, 0) <= 10, worstFlow(paper, 0).toFixed(1) + " cm/s");
+    var q = limitO2(paper, 0, 0, 101.3);
+    add("Independent", "Thin paper does not spread in still air in orbit (21% O₂)", "F04", q > 21, "model limit " + q.toFixed(1) + "%");
+    add("Independent", "Thin paper spreads in still air in orbit at 35% O₂ (SSCE)", "F04", q < 35, "model limit " + q.toFixed(1) + "%");
+    var sb = limitO2(sibal, 20, 0, 101.3);
+    add("Independent", "Cotton-fiberglass fabric burns in cabin air at ~20 cm/s in orbit (Saffire)", "F06", sb < 21, "model limit " + sb.toFixed(1) + "%");
+    var lun = limitO2(paper, 0, 0.166, 101.3), earth = limitO2(paper, 0, 1, 101.3);
+    add("Independent", "Thin fuels are more flammable at lunar gravity than on Earth", "F03", lun < earth, lun.toFixed(1) + "% vs " + earth.toFixed(1) + "%");
+    var nIss = riskOf(21, limitO2(nomex, 10, 0, 101.3)), nLun = riskOf(34, limitO2(nomex, 10, 0.166, 56.5));
+    add("Independent", "An exploration atmosphere (34% O₂, 56.5 kPa) makes Nomex far more flammable than ISS air", "F08", nLun > 0.8 && nIss < 0.2, "risk " + (nIss < 0.005 ? "<1" : Math.round(nIss * 100)) + "% → " + (nLun > 0.995 ? ">99" : Math.round(nLun * 100)) + "%");
+    var mono = true;
+    for (var u = 0; u <= 50 && mono; u += 5) for (var o = 10; o < 50; o += 5) if (riskOf(o + 5, limitO2(paper, u, 0, 101.3)) < riskOf(o, limitO2(paper, u, 0, 101.3))) mono = false;
+    add("Invariant", "More oxygen never lowers the spread risk", "", mono, "checked across flows 0–50 cm/s");
+    add("Invariant", "Lower pressure never lowers the limit at fixed oxygen fraction", "", limitO2(paper, 10, 0, 50) > limitO2(paper, 10, 0, 101.3), "50 vs 101.3 kPa");
+    return c;
   }
 
   /* ---------- research gaps ---------- */
@@ -425,33 +506,11 @@
     return { md: lines.join("\n"), cites: cites, kind: "answer", confidence: conf };
   }
 
-  // Context pack for the optional cloud model: the same retrieval, as text.
-  function contextPack(q, ctx) {
-    var hits = retrieve(q, 10), lines = [];
-    var ids = new Set();
-    hits.forEach(function (h) {
-      if (h.doc.kind === "finding") ids.add(h.doc.id);
-      if (h.doc.kind === "experiment") FF.FINDINGS.forEach(function (f) { if (f.exp.indexOf(h.doc.id) >= 0) ids.add(f.id); });
-    });
-    rankFindings(ctx.weights, (FF.MISSIONS.find(function (m) { return m.id === ctx.mission; }) || FF.MISSIONS[0]).tag)
-      .slice(0, 4).forEach(function (x) { ids.add(x.f.id); });
-    Array.from(ids).slice(0, 12).forEach(function (id) {
-      var f = byId[id];
-      lines.push("[" + f.id + "] " + f.title + ". " + f.text + " Design implication: " + f.action +
-        " Experiments: " + f.exp.map(function (x) { return x + " (" + expName(x) + ")"; }).join(", ") + ". Evidence " + f.evidence + "/5.");
-    });
-    retrieveLive(q, 5).forEach(function (h) {
-      var it = h.doc.ref;
-      lines.push("[" + it.uid + "] " + it.title + " (" + it.date + ", " + it.sourceLabel + "). " + (it.abstract || "").slice(0, 600));
-    });
-    return lines.join("\n");
-  }
-
   FF.engine = {
     tokens: tokens, Index: Index, buildIndex: buildIndex, setLive: setLive, retrieve: retrieve,
-    MODEL: MODEL, CRITERIA: CRITERIA, MISSION_IDX: MISSION_IDX, scoreFinding: scoreFinding, rankFindings: rankFindings,
+    MODEL: MODEL, UNCERTAINTY: UNCERTAINTY, limitRange: limitRange, modelChecks: modelChecks, deriveEvidence: deriveEvidence, CRITERIA: CRITERIA, MISSION_IDX: MISSION_IDX, scoreFinding: scoreFinding, rankFindings: rankFindings,
     buoyantU: buoyantU, effFlow: effFlow, limitO2: limitO2, riskOf: riskOf, riskBand: riskBand, worstFlow: worstFlow, assess: assess,
     coverage: coverage, classify: classify, parseScenario: parseScenario, detectMission: detectMission,
-    detectExperiments: detectExperiments, answer: answer, contextPack: contextPack, byId: function (id) { return byId[id]; }, reindex: reindex
+    detectExperiments: detectExperiments, answer: answer, byId: function (id) { return byId[id]; }, reindex: reindex
   };
 })(window.FF = window.FF || {});

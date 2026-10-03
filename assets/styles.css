@@ -280,8 +280,6 @@ tr:last-child td { border-bottom: 0; }
 .composer textarea { flex: 1; resize: none; min-height: 44px; max-height: 140px; }
 .sugg { display: flex; gap: 6px; flex-wrap: wrap; min-width: 0; }
 .sugg .chip { white-space: normal; text-align: left; }
-.typing::after { content: "▍"; animation: blink 1s steps(2) infinite; color: var(--accent); }
-@keyframes blink { 50% { opacity: 0; } }
 
 /* ---------- live ---------- */
 .src-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }

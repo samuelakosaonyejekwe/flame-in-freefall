@@ -48,11 +48,11 @@ if (/<script src="assets\//.test(html) || /href="assets\//.test(html)) { console
 // A CSP that allows exactly these inline scripts, by hash.
 const csp = [
   "default-src 'none'",
-  `script-src ${scripts.map(sha).join(" ")} https://cdn.jsdelivr.net`,
+  `script-src ${scripts.map(sha).join(" ")}`,
   "style-src 'unsafe-inline'",
   "font-src data:",
   "img-src data: https://images-assets.nasa.gov",
-  "connect-src https://api.openalex.org https://images-api.nasa.gov https://api.anthropic.com https://cdn.jsdelivr.net",
+  "connect-src https://api.openalex.org https://images-api.nasa.gov",
   "base-uri 'none'", "form-action 'none'", "object-src 'none'"
 ].join("; ");
 html = html.replace(/<meta http-equiv="Content-Security-Policy" content="[^"]*">/, () => `<meta http-equiv="Content-Security-Policy" content="${csp}">`);

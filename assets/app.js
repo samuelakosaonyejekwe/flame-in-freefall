@@ -2,8 +2,6 @@
 (function (FF) {
   "use strict";
   var E = FF.engine, C = FF.charts, L = FF.live, esc = C.esc;
-  var SDK_URL = "https://cdn.jsdelivr.net/npm/@anthropic-ai/sdk@0.131.0/+esm";
-  var MODEL = "claude-opus-5-5";
 
   /* ---------- storage ---------- */
   function load(k, d) { try { var v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } }
@@ -23,10 +21,9 @@
     hazardFilter: "",
     liveFilter: { source: "all", hazard: "", mine: false, onlyNew: false, show: 15 },
     gapSel: null,
-    aiMode: prefs.aiMode || "instant",
     chat: []
   };
-  function persist() { save("ff.prefs", { mission: S.mission, audience: S.audience, weights: S.weights, sim: S.sim, aiMode: S.aiMode }); }
+  function persist() { save("ff.prefs", { mission: S.mission, audience: S.audience, weights: S.weights, sim: S.sim }); }
   function mission() { return FF.MISSIONS.find(function (m) { return m.id === S.mission; }) || FF.MISSIONS[0]; }
   function ctx() { return { mission: S.mission, audience: S.audience, weights: S.weights, live: L.state.items }; }
 
@@ -143,7 +140,8 @@
       "<h3>Score for " + esc(mission().label) + ": " + Math.round(s.total) + " / 100</h3>" +
       '<div class="rbars">' + rankBar({ f: f, total: s.total, parts: s.parts }, false) + "</div>" + criteriaLegend() +
       '<dl class="kv"><dt>Hazards</dt><dd>' + f.hazards.map(hazardLabel).map(esc).join(", ") + "</dd><dt>Conditions</dt><dd>" + f.regimes.map(regimeLabel).map(esc).join(", ") +
-      "</dd><dt>Ratings</dt><dd>Impact " + f.impact + "/5 · Evidence " + f.evidence + "/5 · Novelty " + f.novelty + "/5 · Actionability " + f.action_s + "/5</dd>" +
+      "</dd><dt>Evidence</dt><dd>" + f.evidence + "/5, computed: " + esc((f.evidenceWhy || []).join(", ")) + "</dd>" +
+      "<dt>Ratings</dt><dd>Impact " + f.impact + "/5 (" + esc(FF.RUBRIC.impact[f.impact - 1]) + ") · Novelty " + f.novelty + "/5 (" + esc(FF.RUBRIC.novelty[f.novelty - 1]) + ") · Actionability " + f.action_s + "/5 (" + esc(FF.RUBRIC.action_s[f.action_s - 1]) + ")</dd>" +
       "<dt>Mission fit</dt><dd>ISS " + f.rel[0] + "/3 · Transit " + f.rel[1] + "/3 · Moon " + f.rel[2] + "/3 · Mars " + f.rel[3] + "/3</dd></dl>" +
       "<h3>Source experiments</h3><div class=\"row\">" + f.exp.map(function (x) { return '<button type="button" class="chip" data-cite="' + esc(x) + '">' + esc(x) + " · " + esc((E.byId(x) || {}).name || "") + "</button>"; }).join("") + "</div>" +
       '<div class="row"><button type="button" class="btn" id="d-ask">Ask FlameMind about this</button></div></div>');
@@ -279,7 +277,7 @@
         }).join("") +
         '</div><p class="eyebrow" style="margin-top:16px">Presets</p><div class="presets" style="margin-top:8px">' +
         [["balanced", "Balanced"], ["safety", "Safety first"], ["evidence", "Evidence first"], ["frontier", "Frontier science"]].map(function (p) { return '<button type="button" class="chip" data-preset="' + p[0] + '">' + p[1] + "</button>"; }).join("") +
-        '</div><p class="note" style="margin-top:14px">Score = Σ weight × normalized rating ÷ Σ weights, on a 0–100 scale. Ratings are editorial and documented in Data &amp; method.</p></section>' +
+        '</div><p class="note" style="margin-top:14px">Score = Σ weight × normalized rating ÷ Σ weights, on a 0–100 scale. Evidence is computed from the experiments; other ratings follow the rubric in Data &amp; method.</p></section>' +
         '<section class="panel span-8"><div class="panel-head"><div><h2>Top 12 by score</h2><p>Bar segments show how much each criterion contributes.</p></div>' + criteriaLegend() + '</div><div class="rbars" id="rbars">' +
         ranked.slice(0, 12).map(function (x) { return rankBar(x, true); }).join("") + "</div></section>" +
         '<section class="panel span-12"><div class="panel-head"><div><h2>All findings</h2><p id="ins-count">' + shown.length + " of " + ranked.length + ' shown.</p></div><div class="row"><label class="sr" for="hz-filter">Filter by hazard</label><select id="hz-filter"><option value="">All hazards</option>' +
@@ -447,9 +445,9 @@
       $("#ppo2", el).textContent = r1(s.o2 / 100 * s.p); $("#ub", el).textContent = r1(a.ub);
       var color = { low: "var(--ok)", elevated: "var(--warn)", high: "var(--serious)", severe: "var(--crit)" }[a.band.id];
       $("#verdict", el).innerHTML = '<div class="verdict"><div class="panel-head" style="margin:0"><div><h2>' + esc(a.mat.label) + '</h2><p>At ' + r1(s.o2) + "% O₂, " + r1(s.p) + " kPa, " + s.g.toFixed(2) + " g, " + r1(s.flow) + ' cm/s</p></div><span class="pill ' + a.band.id + '">' + a.band.label + " risk</span></div>" +
-        '<div class="big"><span class="num">' + pct(a.risk) + '</span><span class="muted">chance a flame spreads (model estimate)</span></div>' +
+        '<div class="big"><span class="num">' + pct(a.risk) + '</span><span class="muted">chance a flame spreads (model estimate; ' + (pct(a.riskLo) === pct(a.riskHi) ? "unchanged" : pct(a.riskLo) + " to " + pct(a.riskHi)) + " across model uncertainty)</span></div>" +
         '<div class="meter" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + Math.round(a.risk * 100) + '" aria-label="Spread probability"><i style="width:' + Math.max(2, a.risk * 100) + "%;background:" + color + '"></i></div>' +
-        '<div class="stats"><div class="stat"><span class="label">Limiting O₂ here</span><span class="value num">' + r1(a.limit) + '%</span><span class="sub">margin ' + (a.margin >= 0 ? "+" : "") + r1(a.margin) + " pts</span></div>" +
+        '<div class="stats"><div class="stat"><span class="label">Limiting O₂ here</span><span class="value num">' + r1(a.limit) + '%</span><span class="sub">range ' + r1(a.limitLo) + "–" + r1(a.limitHi) + "%, margin " + (a.margin >= 0 ? "+" : "") + r1(a.margin) + " pts</span></div>" +
         '<div class="stat"><span class="label">Worst-case flow</span><span class="value num">' + r1(wf) + '</span><span class="sub">cm/s, limit ' + r1(a.worstLimit) + "%</span></div>" +
         '<div class="stat"><span class="label">1 g upward test limit</span><span class="value num">' + r1(a.testLimit) + '%</span><span class="sub">same atmosphere</span></div>' +
         '<div class="stat"><span class="label">Worst-case risk</span><span class="value num">' + pct(a.worstRisk) + '</span><span class="sub">' + a.worstBand.label + "</span></div></div>" +
@@ -504,153 +502,51 @@
   }
 
   /* ---------- Ask FlameMind ---------- */
-  var cloud = { key: null, remember: false, sdk: null, ctl: null };
-  (function () {
-    try { cloud.key = sessionStorage.getItem("ff.k") || null; } catch (e) { /* ignore */ }
-    if (!cloud.key) { try { cloud.key = localStorage.getItem("ff.k") || null; cloud.remember = !!cloud.key; } catch (e) { /* ignore */ } }
-  })();
-  function setKey(k, remember) {
-    cloud.key = k || null; cloud.remember = !!remember;
-    try { sessionStorage.removeItem("ff.k"); localStorage.removeItem("ff.k"); } catch (e) { /* ignore */ }
-    if (k) { try { (remember ? localStorage : sessionStorage).setItem("ff.k", k); } catch (e) { /* ignore */ } }
-  }
-
-  var SYSTEM = "You are FlameMind, an analyst inside a NASA Space Apps dashboard about microgravity combustion and spacecraft fire safety. " +
-    "Answer using the CONTEXT records provided with each question. Cite records inline with their IDs in square brackets exactly as written, for example [F02] or [NTRS-20260000641]. " +
-    "If the context does not support a claim, say so plainly rather than guessing, and mark general background knowledge as such. " +
-    "Write for the stated audience. Use short paragraphs and '- ' bullets, **bold** for key terms, no headings and no tables. Keep answers under about 250 words unless asked for more. " +
-    "Finish with one line starting 'Confidence:' (High, Medium or Low) and a short reason. Never present screening-model numbers as certified test results.";
-
-  function cloudAsk(question, onText, signal) {
-    var mm = mission();
-    var pack = E.contextPack(question, ctx());
-    var hist = S.chat.filter(function (t) { return t.final; });
-    if (hist.length && hist[hist.length - 1].role === "user") hist = hist.slice(0, -1);   // the question being asked goes in below, with its evidence
-    var turns = hist.slice(-6).map(function (t) { return { role: t.role, content: t.text }; });
-    while (turns.length && turns[0].role !== "user") turns.shift();
-    var userMsg = "Mission: " + mm.label + " (" + mm.note + ")\nAudience: " + (S.audience === "crew" ? "crew and general public, plain language" : "engineers and scientists") +
-      "\n\nCONTEXT:\n" + pack + "\n\nQUESTION: " + question;
-    var messages = turns.concat([{ role: "user", content: userMsg }]);
-    var load = cloud.sdk ? Promise.resolve(cloud.sdk) : import(SDK_URL).then(function (mod) { cloud.sdk = mod; return mod; });
-    return load.then(function (mod) {
-      var Anthropic = mod.default || mod.Anthropic;
-      var client = new Anthropic({ apiKey: cloud.key, dangerouslyAllowBrowser: true, maxRetries: 1 });
-      function run(withFallback) {
-        var body = { model: MODEL, max_tokens: 4000, output_config: { effort: "medium" }, system: SYSTEM, messages: messages };
-        if (withFallback) { body.betas = ["server-side-fallback-2026-07-01"]; body.fallbacks = "default"; }
-        var stream = client.beta.messages.stream(body, { signal: signal });
-        stream.on("text", function (_d, snapshot) { onText(snapshot); });
-        return stream.finalMessage();
-      }
-      return run(true).catch(function (err) {
-        if (err && err.status === 400 && /fallback/i.test(String(err.message))) return run(false);
-        throw err;
-      }).then(function (msg) {
-        if (msg.stop_reason === "refusal") { var e = new Error("Deep mode declined this request."); e.code = "refused"; throw e; }
-        return msg.content.filter(function (b) { return b.type === "text"; }).map(function (b) { return b.text; }).join("");
-      });
-    });
-  }
-  function cloudError(err) {
-    if (cloud.ctl && cloud.ctl.signal.aborted) return "Stopped.";
-    var st = err && err.status;
-    if (st === 401) return "The API key was rejected. Check it with the API key button above.";
-    if (st === 403) return "This API key does not have access to the model.";
-    if (st === 429) return "Rate limit reached on your API key. Try again in a minute.";
-    if (st >= 500) return "The Anthropic API is temporarily unavailable.";
-    if (err && err.code === "refused") return err.message;
-    return "Could not reach the Anthropic API (" + ((err && err.message) || "network error") + ").";
-  }
+  // Answers come from the on-device engine only: instant, private and offline.
+  // Clear any API key stored by an earlier version of the app.
+  ["ff.k"].forEach(function (k) { try { localStorage.removeItem(k); sessionStorage.removeItem(k); } catch (e) { /* ignore */ } });
 
   function chatHTML(t) {
     if (t.role === "user") return '<div class="msg user"><div class="body">' + md(t.text).replace(/<button[^>]*data-cite="([^"]+)"[^>]*>[^<]*<\/button>/g, "[$1]") + "</div></div>";
-    return '<div class="msg bot"><div class="who"><b>FlameMind</b><span class="chip">' + esc(t.engine) + "</span>" + (t.confidence ? '<span class="chip">Confidence: ' + esc(t.confidence) + "</span>" : "") + "</div>" +
-      '<div class="body' + (t.final ? "" : " typing") + '">' + md(t.text || "Thinking…") + "</div>" + (t.note ? '<p class="note">' + esc(t.note) + "</p>" : "") + "</div>";
+    return '<div class="msg bot"><div class="who"><b>FlameMind</b>' + (t.confidence ? '<span class="chip">Confidence: ' + esc(t.confidence) + "</span>" : "") + "</div>" +
+      '<div class="body">' + md(t.text) + "</div>" + (t.note ? '<p class="note">' + esc(t.note) + "</p>" : "") + "</div>";
   }
   function welcome() {
-    return { role: "assistant", final: true, engine: "On-device", text:
+    return { role: "assistant", text:
       "Ask me anything about how fire behaves in microgravity and what it means for **" + mission().label + "**.\n" +
       "- I rank and summarize NASA findings, compare experiments, find research gaps, and run screening scenarios such as \u201ccotton at 34% O2, 56 kPa, lunar gravity\u201d.\n" +
       "- Every claim links to its source: tap a citation chip to open it.\n" +
-      "- **Instant** mode runs entirely on this device, even offline. **Deep** mode sends the same evidence to the Anthropic API with your own key for longer, conversational answers." };
+      "- Answers are worked out on this device, instantly and privately, even in airplane mode." };
   }
   R.ask = function (el) {
     if (!S.chat.length) S.chat.push(welcome());
-    var deep = S.aiMode === "deep";
     el.innerHTML =
-      '<div class="view-head"><div><p class="eyebrow">Evidence analyst</p><h1>Ask FlameMind</h1><p>Grounded answers with citations, tuned to your mission and audience.</p></div>' +
-      '<div class="row"><div class="seg" role="group" aria-label="Answer mode"><button type="button" id="mode-instant" aria-pressed="' + !deep + '">Instant</button><button type="button" id="mode-deep" aria-pressed="' + deep + '">Deep</button></div>' +
-      '<button type="button" class="btn" id="key-btn"><svg><use href="#i-key"/></svg>' + (cloud.key ? "API key set" : "Set API key") + "</button></div></div>" +
+      '<div class="view-head"><div><p class="eyebrow">Evidence analyst</p><h1>Ask FlameMind</h1><p>Grounded answers with citations, tuned to your mission and audience. Runs on this device, so it works offline.</p></div></div>' +
       '<section class="panel chat"><div class="msgs" id="msgs" aria-live="polite">' + S.chat.map(chatHTML).join("") + "</div>" +
       '<div class="composer"><div class="sugg">' + FF.SUGGESTED.map(function (q) { return '<button type="button" class="chip" data-q="' + esc(q) + '">' + esc(q) + "</button>"; }).join("") + "</div>" +
       '<form id="ask-form" autocomplete="off"><label class="sr" for="ask-input">Your question</label><textarea id="ask-input" rows="1" maxlength="2000" placeholder="Ask about flame spread, suppression, smoke, materials, or a scenario…"></textarea>' +
-      '<button type="button" class="btn" id="ask-stop" hidden>Stop</button><button type="submit" class="btn primary" aria-label="Send"><svg><use href="#i-send"/></svg></button></form>' +
-      '<p class="note">' + (deep ? "Deep mode sends your question and the cited evidence directly from your browser to the Anthropic API with your key." : "Instant mode runs on this device. Nothing leaves your browser.") + "</p></div></section>";
+      '<button type="submit" class="btn primary" aria-label="Send"><svg><use href="#i-send"/></svg></button></form>' +
+      '<p class="note">Nothing you type leaves this device.</p></div></section>';
     var msgs = $("#msgs", el); msgs.scrollTop = msgs.scrollHeight;
-    $("#mode-instant", el).addEventListener("click", function () { S.aiMode = "instant"; persist(); render("ask"); });
-    $("#mode-deep", el).addEventListener("click", function () { if (!cloud.key) { keyDialog(true); return; } S.aiMode = "deep"; persist(); render("ask"); });
-    $("#key-btn", el).addEventListener("click", function () { keyDialog(false); });
     el.querySelectorAll("[data-q]").forEach(function (b) { b.addEventListener("click", function () { send(b.getAttribute("data-q")); }); });
-    var ta = $("#ask-input", el);
-    ta.addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("#ask-form", el).requestSubmit ? $("#ask-form", el).requestSubmit() : send(ta.value); } });
+    var ta = $("#ask-input", el), form = $("#ask-form", el);
+    ta.addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (form.requestSubmit) form.requestSubmit(); else send(ta.value); } });
     ta.addEventListener("input", function () { ta.style.height = "auto"; ta.style.height = Math.min(140, ta.scrollHeight) + "px"; });
-    $("#ask-form", el).addEventListener("submit", function (e) { e.preventDefault(); send(ta.value); });
-    $("#ask-stop", el).addEventListener("click", function () { if (cloud.ctl) cloud.ctl.abort(); });
+    form.addEventListener("submit", function (e) { e.preventDefault(); send(ta.value); });
   };
   var pendingAsk = null;
   function askFromElsewhere(q) { pendingAsk = q; if (S.view === "ask") { send(q); pendingAsk = null; } else location.hash = "ask"; }
-  var busy = false;
   function send(q) {
     q = String(q || "").trim(); if (!q) return;
-    if (busy) { toast("Still answering. Press Stop to ask something else."); return; }
     var input = $("#ask-input"); if (input) { input.value = ""; input.style.height = ""; }
-    S.chat.push({ role: "user", text: q, final: true });
-    var c = ctx(), local = E.answer(q, c);
-    if (S.aiMode === "deep" && cloud.key && navigator.onLine) {
-      var t = { role: "assistant", text: "", final: false, engine: "Deep · Anthropic API", confidence: null };
-      S.chat.push(t); redrawChat(); busy = true; $("#ask-stop").hidden = false; $("#msgs").setAttribute("aria-busy", "true");
-      cloud.ctl = new AbortController();
-      var last = 0;
-      cloudAsk(q, function (snap) { t.text = snap; var now = Date.now(); if (now - last > 60) { last = now; redrawLast(t); } }, cloud.ctl.signal)
-        .then(function (text) {
-          t.text = text; t.final = true;
-          var m = text.match(/Confidence:\s*(High|Medium|Low)/i); if (m) t.confidence = m[1];
-        })
-        .catch(function (err) {
-          t.final = true;
-          if (cloud.ctl.signal.aborted) { t.note = t.text ? "Stopped early." : "Stopped before an answer arrived."; if (!t.text) t.text = "Stopped."; return; }
-          t.note = cloudError(err) + " Showing the on-device answer instead.";
-          t.engine = "On-device (fallback)"; t.text = local.md; t.confidence = local.confidence;
-        })
-        .then(function () { busy = false; var st = $("#ask-stop"); if (st) st.hidden = true; var mm = $("#msgs"); if (mm) mm.removeAttribute("aria-busy"); redrawChat(); });
-    } else {
-      S.chat.push({ role: "assistant", text: local.md, final: true, engine: S.aiMode === "deep" ? "On-device (offline)" : "On-device · instant", confidence: local.confidence,
-        note: local.kind === "scenario" ? "Scenario loaded into Fire envelope." : null });
-      if (local.kind === "scenario" && local.scenario) { S.sim = local.scenario; persist(); dirty.envelope = true; }
-      redrawChat();
-    }
+    S.chat.push({ role: "user", text: q });
+    var a = E.answer(q, ctx());
+    S.chat.push({ role: "assistant", text: a.md, confidence: a.confidence, note: a.kind === "scenario" ? "Scenario loaded into Fire envelope." : null });
+    if (a.kind === "scenario" && a.scenario) { S.sim = a.scenario; persist(); dirty.envelope = true; }
+    if (S.chat.length > 80) S.chat.splice(1, S.chat.length - 80);   // keep the welcome, cap the history
+    redrawChat();
   }
   function redrawChat() { var m = $("#msgs"); if (!m) return; m.innerHTML = S.chat.map(chatHTML).join(""); m.scrollTop = m.scrollHeight; }
-  function redrawLast(t) {
-    var m = $("#msgs"); if (!m) return;
-    var last = m.lastElementChild; if (!last) return redrawChat();
-    last.outerHTML = chatHTML(t); m.scrollTop = m.scrollHeight;
-  }
-  function keyDialog(enableAfter) {
-    openDrawer('<p class="eyebrow">Deep analysis</p><h2 id="drawer-title">Connect Deep mode</h2><div class="stack">' +
-      "<p>Deep mode sends your question and the matching NASA evidence to the Anthropic API for longer, conversational answers that cite the same sources.</p>" +
-      '<div class="callout info"><b>Your key stays with you.</b> It is stored only in this browser and sent only to api.anthropic.com over HTTPS. There is no server in between. Use a key with a spending limit.</div>' +
-      '<label for="key-in" class="small">Anthropic API key</label><input type="password" id="key-in" autocomplete="off" spellcheck="false" placeholder="sk-ant-…" value="' + esc(cloud.key || "") + '">' +
-      '<label class="check" style="border:0"><input type="checkbox" id="key-rem"' + (cloud.remember ? " checked" : "") + "><span>Remember on this device (otherwise cleared when the tab closes)</span></label>" +
-      '<div class="row"><button type="button" class="btn primary" id="key-save">Save key</button><button type="button" class="btn" id="key-clear">Remove key</button></div>' +
-      '<p class="note">Without a key, Instant mode still answers every question on-device.</p></div>');
-    $("#key-save").addEventListener("click", function () {
-      var v = $("#key-in").value.trim();
-      if (!/^sk-ant-[A-Za-z0-9_\-]{20,}$/.test(v)) { toast("That doesn't look like an Anthropic API key."); return; }
-      setKey(v, $("#key-rem").checked); if (enableAfter) S.aiMode = "deep"; persist(); closeDrawer(); toast("Key saved"); render("ask");
-    });
-    $("#key-clear").addEventListener("click", function () { setKey(null); S.aiMode = "instant"; persist(); closeDrawer(); toast("Key removed"); render("ask"); });
-  }
 
   /* ---------- live feed ---------- */
   function feedItems(items, compact) {
@@ -694,8 +590,11 @@
       '<button type="button" class="btn" id="live-refresh"><svg><use href="#i-refresh"/></svg>Refresh now</button></div>' +
       '<div class="src-row">' + Object.keys(st.status).map(function (k) {
         var s = st.status[k], cls = s.state === "ok" ? "ok" : s.state === "err" ? "err" : s.state === "cached" ? "" : "wait";
+        var stale = k === "ntrs" && s.at && Date.now() - Date.parse(s.at) > 36 * 3600 * 1000;
+        if (stale) cls = "wait";
         return '<div class="src"><b><span class="status-dot ' + cls + '"></span>' + esc(s.label) + '</b><span class="muted">' + esc(s.mode) + "</span><span>" +
-          (s.state === "wait" ? "Checking…" : s.state === "err" ? "Unavailable now (" + esc(s.error || "error") + "), showing saved copy" : s.count + " items · updated " + ago(s.at)) + "</span></div>";
+          (s.state === "wait" ? "Checking…" : s.state === "err" ? "Unavailable now (" + esc(s.error || "error") + "), showing saved copy" : s.count + " items · updated " + ago(s.at)) + "</span>" +
+          (stale ? '<span class="note">Older than expected. The 6-hour refresh may be paused; the other two sources stay live.</span>' : "") + "</div>";
       }).join("") + "</div>" +
       '<div class="grid"><section class="panel span-8"><div class="panel-head"><div><h2>Latest research</h2><p>' + items.length + " of " + st.items.length + " items" + (st.newCount ? " · " + st.newCount + " new since you last opened the feed" : "") + "</p></div>" +
       '<div class="filters"><label class="sr" for="lf-src">Source</label><select id="lf-src"><option value="all">All sources</option><option value="ntrs"' + (f.source === "ntrs" ? " selected" : "") + '>NASA NTRS</option><option value="openalex"' + (f.source === "openalex" ? " selected" : "") + ">NASA-affiliated papers</option></select>" +
@@ -788,11 +687,12 @@
       "<p><b>Curated knowledge base.</b> " + FF.EXPERIMENTS.length + " NASA and partner investigations (" + Math.min.apply(null, FF.EXPERIMENTS.map(function (e) { return e.years[0]; })) + "–" + FF.NOW_YEAR + ") and " + BASE_FINDINGS.length + " findings distilled from public NASA summaries of SSCE, BASS, Saffire, FLEX, SOFBALL, LSP, SAME, MIST, ACME, FLARE, SoFIE and more, plus " + FF.INCIDENTS.length + " operational incidents.</p>" +
       '<p><b>Live, in your browser:</b> NASA-affiliated publications from <a href="https://openalex.org" target="_blank" rel="noopener noreferrer">OpenAlex</a> and imagery from the <a href="https://images.nasa.gov" target="_blank" rel="noopener noreferrer">NASA Image and Video Library</a>, requested directly by each visitor\'s browser.</p>' +
       '<p><b>Scheduled snapshot:</b> the <a href="https://ntrs.nasa.gov" target="_blank" rel="noopener noreferrer">NASA Technical Reports Server</a>, which does not accept browser requests, is fetched every 6 hours by an automated build on GitHub\'s servers and published with the site. No personal computer is involved.</p>' +
-      '<p><b>Verify before use.</b> Ratings are editorial; screening values are illustrative. Check primary sources in NTRS before engineering decisions.</p></div></section>' +
+      '<p><b>Verify before use.</b> Impact, novelty and actionability are rubric-based judgements, and the screening model is checked against NASA observations but is not a certification tool. Check primary sources in NTRS before engineering decisions.</p></div></section>' +
       '<section class="panel span-6"><h2>How ranking works</h2><div class="stack small" style="margin-top:10px">' +
-      "<p>Each finding is rated 1–5 on <b>safety impact</b>, <b>evidence strength</b> (flight duration, replication, scale), <b>novelty</b> and <b>actionability</b>, and 0–3 for relevance to ISS, transit, lunar and Martian missions.</p>" +
+      "<p><b>Evidence strength</b> is computed, not hand-rated: the best supporting test platform (spacecraft-scale fire or standardized ground testing 4, long-duration orbital 3, short-duration microgravity 2), +1 when two or more investigations agree, −1 when all are still preliminary; documented incidents score 5.</p>" +
+      "<p><b>Safety impact</b>, <b>novelty</b> and <b>actionability</b> (1–5) and <b>mission fit</b> (0–3) are rated against the rubric below.</p>" +
       "<p>Score = 100 × Σ wᵢ·nᵢ ÷ Σ wᵢ, where nᵢ is the rating normalized to 0–1 and wᵢ are the weights you set in Insights.</p>" +
-      "<p><b>FlameMind</b> retrieves evidence with BM25 search and domain synonyms, detects intent (scenario, comparison, ranking, gaps, definitions) and composes answers that cite their sources. Deep mode sends the same retrieved evidence to the Anthropic API.</p>" +
+      "<p><b>FlameMind</b> retrieves evidence with BM25 search and domain synonyms, detects intent (scenario, comparison, ranking, gaps, definitions) and composes answers that cite their sources.</p>" +
       "<p><b>Research gaps.</b> Coverage of a hazard under a set of conditions is the sum of evidence ratings ÷ 5 of the findings that address it. Gap = mission importance × condition fit × e<sup>−coverage/1.2</sup>, where mission importance is the average mission relevance of findings about that hazard.</p>" +
       "<p><b>Live items</b> are tagged by hazard and condition with a keyword classifier and scored for fire-safety relevance; low-relevance items are filtered out.</p></div></section>" +
       '<section class="panel span-6"><h2>Bring your own findings</h2><div class="stack small" style="margin-top:10px"><p>Import a JSON array of findings (for example, from your team\'s literature review). They join the ranking, the gaps matrix and FlameMind\'s evidence on this device only.</p>' +
@@ -800,7 +700,15 @@
       '<div class="row"><input type="file" id="imp-file" accept="application/json,.json" class="sr"><label class="btn" for="imp-file">Choose JSON file</label><button type="button" class="btn" id="imp-clear"' + (imp.length ? "" : " disabled") + ">Remove imported (" + imp.length + ")</button></div>" +
       '<p class="note">Files are read locally and validated; nothing is uploaded. A new import replaces the previous one.</p></div></section>' +
       '<section class="panel span-6"><h2>Privacy, security and offline use</h2><div class="stack small" style="margin-top:10px">' +
-      "<ul style=\"margin:0;padding-left:18px;display:grid;gap:6px\"><li>No accounts, cookies or analytics. Preferences stay in your browser.</li><li>App files and fonts come from this site. A strict Content Security Policy allows only NASA's image library and OpenAlex, plus jsDelivr (to load the API client) and the Anthropic API when you turn on Deep mode.</li><li>All external text is escaped before display; imported files are schema-checked.</li><li>Installable as an app and works offline with the last saved data.</li></ul></div></section>" +
+      "<ul style=\"margin:0;padding-left:18px;display:grid;gap:6px\"><li>No accounts, cookies or analytics. Preferences stay in your browser.</li><li>All code and fonts come from this site; no third-party scripts. A strict Content Security Policy allows connections only to NASA's image library and OpenAlex.</li><li>Questions you ask are answered on this device and never sent anywhere.</li><li>All external text is escaped before display; imported files are schema-checked.</li><li>Installable as an app and works offline with the last saved data.</li></ul></div></section>" +
+      '<section class="panel span-6"><h2>Rating rubric</h2><div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Score</th><th>Safety impact</th><th>Novelty</th><th>Actionability</th></tr></thead><tbody>' +
+      [5, 4, 3, 2, 1].map(function (n) { return '<tr><td class="num">' + n + "</td><td>" + esc(FF.RUBRIC.impact[n - 1]) + "</td><td>" + esc(FF.RUBRIC.novelty[n - 1]) + "</td><td>" + esc(FF.RUBRIC.action_s[n - 1]) + "</td></tr>"; }).join("") +
+      '</tbody></table></div><p class="note" style="margin-top:8px">Mission fit: ' + FF.RUBRIC.rel.map(function (t, i) { return i + " = " + esc(t.toLowerCase()); }).join("; ") + ".</p></section>" +
+      '<section class="panel span-6"><h2>Fire envelope model checks</h2><p class="small muted" style="margin-top:6px">Run in your browser on every load. Independent checks compare the model with NASA observations it was not fitted to.</p><div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Check</th><th>Type</th><th>Result</th></tr></thead><tbody>' +
+      E.modelChecks().map(function (c) {
+        return "<tr><td>" + esc(c.claim) + (c.source ? ' <button type="button" class="chip cite" data-cite="' + esc(c.source) + '">' + esc(c.source) + "</button>" : "") + '<br><span class="note">' + esc(c.detail) + "</span></td><td>" + esc(c.kind) + '</td><td><span class="pill ' + (c.pass ? "low" : "severe") + '">' + (c.pass ? "Pass" : "Fail") + "</span></td></tr>";
+      }).join("") + '</tbody></table></div><p class="note" style="margin-top:8px">Coefficient uncertainty used for the ranges in Fire envelope: ' +
+      Object.keys(E.UNCERTAINTY).map(function (k) { return k + " ±" + Math.round(E.UNCERTAINTY[k] * 100) + "%"; }).join(", ") + ".</p></section>" +
       '<section class="panel span-12"><h2>Glossary</h2><dl class="kv gloss">' +
       FF.GLOSSARY.map(function (g) { return "<dt><b>" + esc(g.term) + "</b></dt><dd>" + esc(g.def) + "</dd>"; }).join("") + "</dl></section></div>";
     $("#imp-file", el).addEventListener("change", function (e) {
@@ -1017,7 +925,7 @@
     if (d.firefox) return "<p>Firefox on computers cannot install web apps. Use the offline edition below, or open this page in Chrome, Edge or Safari to install it.</p>";
     return '<ol class="steps"><li>Click the <b>install</b> icon at the right of the address bar,</li><li>or open the browser menu and choose <b>Install Flame in Freefall</b> (Chrome) or <b>Apps, Install this site as an app</b> (Edge).</li></ol>';
   }
-  function statusItem(ok, text) { return '<li class="' + (ok ? "ok" : "") + '"><svg><use href="#i-' + (ok ? "check" : "offline") + '"/></svg><span>' + text + "</span></li>"; }
+  function statusItem(ok, text) { return '<li class="' + (ok ? "ok" : "") + '"><svg><use href="#i-' + (ok ? "check" : "pending") + '"/></svg><span>' + text + "</span></li>"; }
   function openInstall() {
     var installed = standalone() || inst.installed, ready = offlineReady(), st = L.state;
     var appLine = OFFLINE_EDITION ? "You are using the offline edition: the whole app is inside this one file." :
@@ -1029,11 +937,11 @@
       '<ul class="status-list">' + statusItem(ready, appLine) + statusItem(!!st.fetchedAt, dataLine) +
       statusItem(installed || OFFLINE_EDITION, installed ? "Installed on this device." : OFFLINE_EDITION ? "No installation needed for this file." : "Not installed yet.") + "</ul>" +
       (installed || OFFLINE_EDITION ? "" : "<h3>Install</h3>" + installSteps() + (inst.prompt ? '<div class="row"><button type="button" class="btn primary" id="do-install"><svg><use href="#i-install"/></svg>Install now</button></div>' : "")) +
-      '<h3>Check it works</h3><ol class="steps"><li>Turn on airplane mode.</li><li>Open Flame in Freefall from your home screen or app list.</li><li>Everything except the live refresh and Deep mode keeps working.</li></ol>' +
+      '<h3>Check it works</h3><ol class="steps"><li>Turn on airplane mode.</li><li>Open Flame in Freefall from your home screen or app list.</li><li>Everything keeps working; only the live refresh waits for a connection.</li></ol>' +
       '<div class="row"><button type="button" class="btn" id="do-save"><svg><use href="#i-refresh"/></svg>Save latest NASA data now</button></div>' +
       (OFFLINE_EDITION ? "" : '<h3>Offline edition</h3><p class="small">A single file with the whole app and the latest NASA report snapshot inside. Save it to any computer, phone or USB stick and open it in a browser, no internet or installation needed. Good for browsers that cannot install apps.</p>' +
         '<div class="row" id="edition-row"><a class="btn" id="do-edition" href="flame-in-freefall-offline.html" download="flame-in-freefall-offline.html"><svg><use href="#i-install"/></svg>Download offline edition</a><span class="note" id="edition-note"></span></div>') +
-      '<p class="note">Deep mode and the live feed need a connection; Instant answers, rankings, the fire envelope, gaps and all saved data do not.</p></div>');
+      '<p class="note">Only the live refresh needs a connection. Answers, rankings, the fire envelope, gaps and all saved data work offline.</p></div>');
     var di = $("#do-install");
     if (di) di.addEventListener("click", function () {
       var pr = inst.prompt; if (!pr) return;
