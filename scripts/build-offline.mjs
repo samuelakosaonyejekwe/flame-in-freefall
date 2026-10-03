@@ -31,12 +31,16 @@ const iconSvg = "data:image/svg+xml;base64," + (await read("assets/icon.svg", nu
 const iconPng = "data:image/png;base64," + (await read("assets/icon-180.png", null)).toString("base64");
 html = html.replace(/<link rel="manifest"[^>]*>\n?/, "");
 html = html.replace(/<link rel="preload"[^>]*>\n?/g, "");   // fonts are embedded below
+html = html.replace(/<meta name="ff-relay"[^>]*>\n?/, "");    // the file never calls the relay
 html = html.replace(/(<link rel="icon" href=")[^"]*(")/, `$1${iconSvg}$2`);
 html = html.replace(/(<link rel="apple-touch-icon" href=")[^"]*(")/, `$1${iconPng}$2`);
 
 // Scripts, in their original order, plus the embedded report snapshot.
-const snapshot = JSON.parse(await read("live/ntrs.json"));
-const flag = safe(`window.FF_OFFLINE_EDITION = true; window.FF_SNAPSHOT = ${JSON.stringify({ ntrs: snapshot, builtAt: new Date().toISOString() })};`);
+const snapshot = { builtAt: new Date().toISOString() };
+for (const src of ["ntrs", "openalex", "crossref"]) {
+  try { snapshot[src] = JSON.parse(await read(`live/${src}.json`)); } catch { /* source missing: the edition simply lacks it */ }
+}
+const flag = safe(`window.FF_OFFLINE_EDITION = true; window.FF_SNAPSHOT = ${JSON.stringify(snapshot)};`);
 const theme = safe(await read("assets/theme.js"));
 html = html.replace(/<script src="assets\/theme\.js"><\/script>/, () => `<script>${take(flag)}</script>\n<script>${take(theme)}</script>`);
 for (const name of ["data", "engine", "charts", "live", "app"]) {
@@ -52,7 +56,7 @@ const csp = [
   "style-src 'unsafe-inline'",
   "font-src data:",
   "img-src data: https://images-assets.nasa.gov",
-  "connect-src https://api.openalex.org https://api.crossref.org https://images-api.nasa.gov",
+  "connect-src https://api.openalex.org https://api.crossref.org https://images-api.nasa.gov",   // no relay: a file:// page reads its built-in copies
   "base-uri 'none'", "form-action 'none'", "object-src 'none'"
 ].join("; ");
 html = html.replace(/<meta http-equiv="Content-Security-Policy" content="[^"]*">/, () => `<meta http-equiv="Content-Security-Policy" content="${csp}">`);

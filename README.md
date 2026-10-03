@@ -11,18 +11,38 @@ Fire safety insights from NASA microgravity combustion data. Built for the 2026 
 - **Experiments**: NASA and partner investigations, from drop towers to Saffire fires on Cygnus, with a timeline, search and side-by-side comparison.
 - **Fire envelope**: a screening flammability model across oxygen, pressure, gravity and ventilation. It flags the "hidden-risk zone", where a material passes the 1 g upward test but can burn in microgravity or partial gravity.
 - **Ask FlameMind**: questions answered with citations, worked out on the device. Nothing you type leaves it, and it works offline.
-- **Live research feed**: the newest research on fire in space, from NASA and the wider community, plus NASA imagery, tagged by hazard and mission.
+- **Live NASA feed**: the newest research on fire in space, from NASA and the wider community, plus NASA imagery, tagged by hazard and mission.
 - **Research gaps**: an evidence coverage matrix (hazard × conditions) with prioritized research questions.
 
-## Always current, independent of any personal machine
+## Always current, independent of any scheduler or personal machine
 
-The site is static and hosted on GitHub Pages.
+Each visitor's browser fetches NASA data on every visit, and again while the page is open:
 
-- Every visitor's browser reads three public APIs directly: **OpenAlex** (NASA-affiliated papers), **Crossref** (journal and conference papers on fire in space, including NASA conference papers also filed in NTRS) and the **NASA Image and Video Library**. This live path depends on no scheduler, no GitHub job and no personal computer.
-- Each source refreshes on its own interval while the page is open (OpenAlex hourly, Crossref every 30 minutes, images every 6 hours) and keeps its own saved copy, so a failing or rate-limited source never empties the feed.
-- The **NASA Technical Reports Server** does not accept browser requests (and public CORS relays proved unreliable), so it is a **bonus snapshot**: a GitHub Actions build fetches it on every update and hourly when GitHub's scheduler fires. GitHub may delay or skip scheduled runs, which is why the feed's freshness does not depend on it. If NTRS is down, the snapshot already published is kept.
-- GitHub pauses scheduled workflows in public repositories after 60 days without repository activity. Each scheduled run calls the workflow "enable" endpoint, without creating commits; maintainers of keepalive tools report that this resets the 60-day counter.
-- **Safety net:** if the schedule ever pauses anyway, the Live research feed flags the NTRS snapshot as older than expected. OpenAlex, Crossref and NASA Images stay live regardless, and running `gh workflow enable Deploy` (or any push) restores the refresh.
+| Source | What | Route |
+|---|---|---|
+| NASA Technical Reports Server | newest NASA reports | project relay (NTRS blocks browsers) |
+| OpenAlex | NASA-affiliated papers | relay, else direct |
+| Crossref | NASA-funded journal and conference papers | relay, else direct |
+| NASA Image and Video Library | experiment imagery | direct |
+
+- **The project relay** (`relay/`) is a Cloudflare Worker with fixed endpoints (`/v1/ntrs`, `/v1/openalex`, `/v1/crossref`). It is not an open proxy. Cloudflare's own hourly trigger refreshes each source, and every visitor is served that stored copy, so freshness depends on neither GitHub's scheduler nor any computer. Shared caching also keeps visitors far inside the free API limits (OpenAlex budgets requests per network address; Crossref allows 1 request per second). If a source is down, the relay keeps serving its last good copy, marked as stale.
+- **Fallbacks:** if the relay is unreachable, OpenAlex and Crossref are read directly from the browser, and every source falls back to a starter copy published with the site (`live/*.json`). Each device also keeps its last good copy, so the feed never empties.
+- **Publishing:** the GitHub Actions build refreshes the starter copies on every push, and hourly when GitHub's scheduler fires. It is no longer what keeps the feed fresh.
+- **One definition of every source:** `relay/sources.mjs` is used by both the relay and the build. `scripts/check-queries.mjs` fails the build if the browser's direct fallbacks drift from it.
+
+### Deploying the relay
+
+The relay stores its copies in Workers KV, because Cloudflare's cache has no effect on `*.workers.dev` addresses. A Cloudflare cron trigger refreshes them hourly.
+
+```
+cd relay
+npx -p node@24 -p wrangler@4.147.0 -c "wrangler login"
+npx -p node@24 -p wrangler@4.147.0 -c "wrangler kv namespace create DATA"   # put the printed id in wrangler.toml
+npx -p node@24 -p wrangler@4.147.0 -c "wrangler deploy"
+gh variable set RELAY_URL --body "https://flame-in-freefall-relay.<your-subdomain>.workers.dev"
+```
+
+Optional: a free OpenAlex API key gives the relay its own OpenAlex budget. Set it with `wrangler secret put OPENALEX_API_KEY` (it is never stored in the repository).
 
 ## Install and offline use
 
@@ -44,12 +64,14 @@ manifest.webmanifest     install metadata (icons, shortcuts)
 sw.js                    offline engine (precache, saved data, image cache, updates)
 assets/data.js           curated knowledge base: experiments, findings, incidents, glossary
 assets/engine.js         analysis engine: BM25 retrieval, ranking, flammability model, gaps, classifier
-assets/live.js           live data: OpenAlex, Crossref, NASA Images, NTRS snapshot
+assets/live.js           live data, with relay → direct → published-copy fallbacks
+relay/                   Cloudflare Worker relay and the shared source definitions
 assets/charts.js         dependency-free SVG charts
 assets/app.js            views, interactions, install and offline features
 assets/fonts/            self-hosted fonts and their SIL Open Font License texts
-live/ntrs.json           NTRS snapshot; the copy in the repository is a seed, refreshed on every publish
-scripts/fetch-live.mjs   NTRS snapshot fetcher
+live/*.json              starter copies of each source, refreshed on every publish
+scripts/fetch-live.mjs   refreshes the starter copies (live/*.json)
+scripts/check-queries.mjs  build guard: browser fallbacks match relay/sources.mjs
 scripts/build-offline.mjs  builds the single-file offline edition
 scripts/stamp-sw.mjs     stamps the service worker with the release version and file list
 .github/workflows/pages.yml  publish on push and every hour
@@ -67,7 +89,7 @@ To reproduce a published build:
 
 ```
 mkdir -p _site && cp -r index.html 404.html sw.js manifest.webmanifest assets live _site/
-sed -i "s#__SITE_URL__#http://localhost:8080/#g" _site/index.html _site/404.html
+sed -i -e "s#__SITE_URL__#http://localhost:8080/#g" -e "s#__RELAY_URL__##g" -e "s#__RELAY_ORIGIN__##g" _site/index.html _site/404.html
 node scripts/build-offline.mjs _site && node scripts/stamp-sw.mjs _site local
 ```
 

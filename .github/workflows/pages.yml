@@ -32,19 +32,25 @@ jobs:
         with:
           node-version: 24
 
-      - name: Refresh NASA NTRS snapshot
+      - name: Check browser fallbacks match the relay
+        run: node scripts/check-queries.mjs
+
+      - name: Refresh starter copies of the live sources
         env:
+          RELAY_URL: ${{ vars.RELAY_URL }}
           PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
         run: node scripts/fetch-live.mjs
 
       - name: Assemble site
         env:
           SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+          RELAY_URL: ${{ vars.RELAY_URL }}
         run: |
           mkdir -p _site
           cp -r index.html 404.html sw.js manifest.webmanifest assets live _site/
-          sed -i "s#__SITE_URL__#${SITE_URL}#g" _site/index.html _site/404.html
-          if grep -q "__SITE_URL__" _site/index.html _site/404.html; then echo "unreplaced placeholder"; exit 1; fi
+          RELAY_ORIGIN=$(printf '%s' "$RELAY_URL" | sed -E 's#^(https://[^/]+).*#\1#')
+          sed -i -e "s#__SITE_URL__#${SITE_URL}#g" -e "s#__RELAY_URL__#${RELAY_URL}#g" -e "s#__RELAY_ORIGIN__#${RELAY_ORIGIN}#g" _site/index.html _site/404.html
+          if grep -q "__[A-Z_]*__" _site/index.html _site/404.html; then echo "unreplaced placeholder"; exit 1; fi
           node scripts/build-offline.mjs _site
           node scripts/stamp-sw.mjs _site "${GITHUB_SHA::12}"
 

@@ -1,90 +1,51 @@
-// Fetches the NASA Technical Reports Server, which does not allow direct
-// browser requests, and writes live/ntrs.json. Runs every hour in GitHub
-// Actions, so the deployed site refreshes without any personal machine.
-// If NTRS is down, the snapshot currently deployed (PAGES_URL) is kept, so a
-// bad run never rolls the site back to the older copy in the repository.
-// Usage: [PAGES_URL=https://<user>.github.io/<repo>] node scripts/fetch-live.mjs
+// Writes starter copies of every live source to live/*.json for the published
+// site, so even a first visit with every service down shows recent data.
+// The browser refreshes from the relay or the sources themselves; these files
+// are only the starting point and offline copy.
+//
+// For each source, in order: the relay (shared cache), the source itself,
+// the copy already published (PAGES_URL), then the copy in the repository.
+// A bad run therefore never replaces good data with an empty or older file.
+//
+// Usage: [RELAY_URL=https://...] [PAGES_URL=https://<user>.github.io/<repo>] node scripts/fetch-live.mjs
 import { writeFile, readFile, mkdir } from "node:fs/promises";
+import { FETCHERS } from "../relay/sources.mjs";
 
 const OUT = new URL("../live/", import.meta.url);
-const UA = { "User-Agent": "flame-in-freefall-dashboard (NASA Space Apps 2026)", Accept: "application/json" };
+const UA = { "User-Agent": "flame-in-freefall-build (NASA Space Apps 2026)", Accept: "application/json" };
+const withUA = (u, i = {}) => fetch(u, { ...i, headers: { ...UA, ...(i.headers || {}) } });
 
-const NTRS_QUERIES = [
-  "microgravity combustion",
-  "spacecraft fire safety",
-  "flame spread microgravity",
-  "fire suppression spacecraft",
-  "material flammability oxygen",
-  "partial gravity flame"
-];
+function usable(source, d) {
+  if (!d || typeof d !== "object") return false;
+  if (source === "ntrs") return Array.isArray(d.items) && d.items.length > 0;
+  if (source === "openalex") return Array.isArray(d.results) && d.results.length > 0;
+  return Array.isArray(d.message && d.message.items) && d.message.items.length > 0;
+}
 
-async function getJSON(url, tries = 3) {
-  for (let i = 0; i < tries; i++) {
+async function fromUrl(url) {
+  const res = await fetch(url, { headers: UA, signal: AbortSignal.timeout(30000) });
+  if (!res.ok) throw new Error(`${res.status}`);
+  return res.json();
+}
+
+async function refresh(source) {
+  const file = new URL(`${source}.json`, OUT);
+  const attempts = [];
+  if (process.env.RELAY_URL) attempts.push(["relay", () => fromUrl(`${process.env.RELAY_URL.replace(/\/$/, "")}/v1/${source}`)]);
+  attempts.push(["source", () => FETCHERS[source](withUA, source === "ntrs" ? UA : process.env.OPENALEX_API_KEY || "")]);
+  if (process.env.PAGES_URL) attempts.push(["published copy", () => fromUrl(`${process.env.PAGES_URL.replace(/\/$/, "")}/live/${source}.json`)]);
+  for (const [name, run] of attempts) {
     try {
-      const res = await fetch(url, { headers: UA, signal: AbortSignal.timeout(30000) });
-      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-      return await res.json();
-    } catch (err) {
-      if (i === tries - 1) throw err;
-      await new Promise((r) => setTimeout(r, 2000 * (i + 1)));
-    }
+      const d = await run();
+      if (!usable(source, d)) throw new Error("empty");
+      await writeFile(file, JSON.stringify(d));
+      console.log(`${source}: from ${name}, generated ${d.generatedAt || "unknown"}`);
+      return;
+    } catch (err) { console.warn(`${source}: ${name} failed (${err.message})`); }
   }
-}
-
-const clean = (s, n = 1200) => String(s || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, n);
-
-async function ntrs() {
-  const map = new Map();
-  let ok = 0;
-  for (const q of NTRS_QUERIES) {
-    const url = `https://ntrs.nasa.gov/api/citations/search?q=${encodeURIComponent(q)}&page.size=25&sort.field=published&sort.order=desc`;
-    let data;
-    try { data = await getJSON(url); ok++; } catch (err) { console.warn(`query "${q}" failed: ${err.message}`); continue; }
-    for (const r of data.results || []) {
-      if (map.has(r.id)) continue;
-      const pub = (r.publications || [])[0] || {};
-      const date = (pub.publicationDate || r.distributionDate || r.submittedDate || r.created || "").slice(0, 10);
-      map.set(r.id, {
-        id: String(r.id),
-        title: clean(r.title, 300),
-        date,
-        abstract: clean(r.abstract),
-        type: r.stiType || "",
-        center: (r.center && r.center.name) || "",
-        venue: pub.publicationName || (r.meetings && r.meetings[0] && r.meetings[0].name) || "",
-        doi: pub.doi || "",
-        authors: (r.authorAffiliations || []).slice(0, 4).map((a) => a.meta && a.meta.author && a.meta.author.name).filter(Boolean),
-        url: `https://ntrs.nasa.gov/citations/${r.id}`
-      });
-    }
-  }
-  if (!ok) throw new Error("all NTRS queries failed");
-  return [...map.values()].filter((x) => x.title && x.date).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 80);
-}
-
-async function deployedSnapshot(name) {
-  const base = process.env.PAGES_URL;
-  if (!base) return null;
-  try {
-    const d = await getJSON(`${base.replace(/\/$/, "")}/live/${name}`, 2);
-    return Array.isArray(d.items) && d.items.length ? d : null;
-  } catch { return null; }
-}
-
-async function save(name, fn) {
-  const file = new URL(name, OUT);
-  try {
-    const items = await fn();
-    if (!items.length) throw new Error("no items");
-    await writeFile(file, JSON.stringify({ generatedAt: new Date().toISOString(), count: items.length, items }));
-    console.log(`${name}: ${items.length} items`);
-  } catch (err) {
-    const live = await deployedSnapshot(name);
-    if (live) { await writeFile(file, JSON.stringify(live)); console.warn(`${name}: kept deployed snapshot from ${live.generatedAt} (${err.message})`); return; }
-    try { await readFile(file); console.warn(`${name}: kept repository snapshot (${err.message})`); }
-    catch { await writeFile(file, JSON.stringify({ generatedAt: null, count: 0, items: [] })); console.warn(`${name}: empty (${err.message})`); }
-  }
+  try { await readFile(file); console.warn(`${source}: kept repository copy`); }
+  catch { await writeFile(file, JSON.stringify({ generatedAt: null })); console.warn(`${source}: no data`); }
 }
 
 await mkdir(OUT, { recursive: true });
-await save("ntrs.json", ntrs);
+for (const s of ["ntrs", "openalex", "crossref"]) await refresh(s);

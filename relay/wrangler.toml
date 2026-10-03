@@ -1,0 +1,19 @@
+name = "flame-in-freefall-relay"
+main = "worker.mjs"
+compatibility_date = "2026-09-01"
+workers_dev = true
+
+# Hourly refresh of every source, run by Cloudflare (independent of GitHub).
+[triggers]
+crons = ["7 * * * *"]
+
+# Stored copies. Create once with:
+#   npx -p node@24 -p wrangler@4.147.0 -c "wrangler kv namespace create DATA"
+# and put the id it prints here.
+[[kv_namespaces]]
+binding = "DATA"
+id = "__KV_NAMESPACE_ID__"
+
+# Optional: a free OpenAlex API key gives the relay its own OpenAlex budget.
+# Set it as a secret, never in this file:
+#   npx -p node@24 -p wrangler@4.147.0 -c "wrangler secret put OPENALEX_API_KEY"
