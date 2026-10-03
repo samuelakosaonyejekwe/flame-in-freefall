@@ -114,6 +114,7 @@
     var pOA = Promise.all(OA_QUERIES.map(function (q) { return fetchJSON(OA + encodeURIComponent(q)); })).then(function (res) {
       lastOA = [].concat.apply([], res.map(function (d) { return (d.results || []).map(fromOpenAlex); }));
       state.status.openalex.state = "ok"; state.status.openalex.at = new Date().toISOString(); state.status.openalex.count = lastOA.length;
+      finish();   // show each source as soon as it arrives
     }).catch(function (e) { state.status.openalex.state = "err"; state.status.openalex.error = e.message; });
 
     // The single-file offline edition carries its own snapshot; a file:// page cannot fetch one.
@@ -123,6 +124,7 @@
     var pNTRS = getNTRS.then(function (d) {
       lastNTRS = (d.items || []).map(fromNTRS);
       state.status.ntrs.state = "ok"; state.status.ntrs.at = d.generatedAt; state.status.ntrs.count = lastNTRS.length;
+      finish();
     }).catch(function (e) { state.status.ntrs.state = "err"; state.status.ntrs.error = e.message; });
 
     var pIMG = Promise.all(IMG_QUERIES.map(function (q) { return fetchJSON(IMG + encodeURIComponent(q)).catch(function () { return null; }); })).then(function (res) {
