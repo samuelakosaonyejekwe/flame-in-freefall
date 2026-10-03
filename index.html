@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Flame in Freefall</title>
+<meta name="description" content="AI-powered dashboard that summarizes, ranks and interprets NASA microgravity combustion findings into fire safety insights for the Moon, Mars and beyond.">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://images-assets.nasa.gov; connect-src 'self' https://api.openalex.org https://images-api.nasa.gov https://api.anthropic.com https://cdn.jsdelivr.net; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#0a0d13">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="assets/icon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://api.openalex.org" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="assets/styles.css">
+<script src="assets/theme.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<svg width="0" height="0" class="sprite" aria-hidden="true">
+  <symbol id="i-brief" viewBox="0 0 24 24"><path d="M12 3c2 3 5 5 5 9a5 5 0 0 1-10 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3-1-5 1-8z"/></symbol>
+  <symbol id="i-rank" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol>
+  <symbol id="i-exp" viewBox="0 0 24 24"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3"/></symbol>
+  <symbol id="i-env" viewBox="0 0 24 24"><path d="M3 3v18h18M7 15c3 0 3-8 7-8s3 5 7 5"/></symbol>
+  <symbol id="i-ask" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path d="M9 10h6"/></symbol>
+  <symbol id="i-live" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M7.5 7.5a6 6 0 0 0 0 9M16.5 7.5a6 6 0 0 1 0 9M4.5 4.5a10 10 0 0 0 0 15M19.5 4.5a10 10 0 0 1 0 15"/></symbol>
+  <symbol id="i-gap" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 17.5h7M17.5 14v7"/></symbol>
+  <symbol id="i-data" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M4 12l16-8-6 16-2-6z"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-ext" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3"/></symbol>
+</svg>
+
+<div class="app">
+  <header class="topbar">
+    <a class="brand" href="#briefing" aria-label="Flame in Freefall home">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span class="brand-text"><b>Flame in Freefall</b><small>Microgravity fire safety intelligence</small></span>
+    </a>
+    <div class="top-controls">
+      <label class="ctl">
+        <span class="ctl-label">Mission</span>
+        <select id="mission-select" aria-label="Mission profile"></select>
+      </label>
+      <div class="seg" role="radiogroup" aria-label="Audience">
+        <button type="button" role="radio" data-audience="engineer" id="aud-eng">Engineer</button>
+        <button type="button" role="radio" data-audience="crew" id="aud-crew">Plain language</button>
+      </div>
+      <button type="button" class="icon-btn" id="theme-btn" aria-label="Toggle light or dark theme"><svg><use href="#i-moon"/></svg></button>
+    </div>
+  </header>
+
+  <nav class="rail" aria-label="Sections">
+    <a href="#briefing" data-view="briefing"><svg><use href="#i-brief"/></svg><span>Briefing</span></a>
+    <a href="#insights" data-view="insights"><svg><use href="#i-rank"/></svg><span>Insights</span></a>
+    <a href="#experiments" data-view="experiments"><svg><use href="#i-exp"/></svg><span>Experiments</span></a>
+    <a href="#envelope" data-view="envelope"><svg><use href="#i-env"/></svg><span>Fire envelope</span></a>
+    <a href="#ask" data-view="ask"><svg><use href="#i-ask"/></svg><span>Ask FlameMind</span></a>
+    <a href="#live" data-view="live"><svg><use href="#i-live"/></svg><span>Live NASA feed</span><i class="dot" id="live-dot" hidden></i></a>
+    <a href="#gaps" data-view="gaps"><svg><use href="#i-gap"/></svg><span>Research gaps</span></a>
+    <a href="#data" data-view="data"><svg><use href="#i-data"/></svg><span>Data &amp; method</span></a>
+  </nav>
+
+  <main id="main" tabindex="-1">
+    <section class="view" id="view-briefing" data-view="briefing"></section>
+    <section class="view" id="view-insights" data-view="insights" hidden></section>
+    <section class="view" id="view-experiments" data-view="experiments" hidden></section>
+    <section class="view" id="view-envelope" data-view="envelope" hidden></section>
+    <section class="view" id="view-ask" data-view="ask" hidden></section>
+    <section class="view" id="view-live" data-view="live" hidden></section>
+    <section class="view" id="view-gaps" data-view="gaps" hidden></section>
+    <section class="view" id="view-data" data-view="data" hidden></section>
+    <footer class="foot">
+      <p>Built for the 2026 NASA Space Apps Challenge. Curated from public NASA sources; screening model values are illustrative. Verify against primary sources before engineering use.</p>
+    </footer>
+  </main>
+
+  <nav class="tabbar" aria-label="Sections">
+    <a href="#briefing" data-view="briefing"><svg><use href="#i-brief"/></svg><span>Brief</span></a>
+    <a href="#insights" data-view="insights"><svg><use href="#i-rank"/></svg><span>Insights</span></a>
+    <a href="#envelope" data-view="envelope"><svg><use href="#i-env"/></svg><span>Envelope</span></a>
+    <a href="#ask" data-view="ask"><svg><use href="#i-ask"/></svg><span>Ask</span></a>
+    <button type="button" id="more-btn" aria-haspopup="dialog" aria-controls="more-sheet"><svg><use href="#i-more"/></svg><span>More</span></button>
+  </nav>
+</div>
+
+<div class="sheet" id="more-sheet" role="dialog" aria-modal="true" aria-label="More sections" hidden>
+  <div class="sheet-panel">
+    <a href="#experiments" data-view="experiments"><svg><use href="#i-exp"/></svg>Experiments</a>
+    <a href="#live" data-view="live"><svg><use href="#i-live"/></svg>Live NASA feed</a>
+    <a href="#gaps" data-view="gaps"><svg><use href="#i-gap"/></svg>Research gaps</a>
+    <a href="#data" data-view="data"><svg><use href="#i-data"/></svg>Data &amp; method</a>
+  </div>
+</div>
+
+<div class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title" hidden>
+  <div class="drawer-panel">
+    <button type="button" class="icon-btn drawer-close" id="drawer-close" aria-label="Close details"><svg><use href="#i-x"/></svg></button>
+    <div id="drawer-body"></div>
+  </div>
+</div>
+
+<div class="tip" id="tip" role="tooltip" hidden></div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="assets/data.js" defer></script>
+<script src="assets/engine.js" defer></script>
+<script src="assets/charts.js" defer></script>
+<script src="assets/live.js" defer></script>
+<script src="assets/app.js" defer></script>
+</body>
+</html>

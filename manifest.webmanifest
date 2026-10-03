@@ -1,0 +1,11 @@
+{
+  "name": "Flame in Freefall",
+  "short_name": "Flame in Freefall",
+  "description": "AI-powered fire safety insights from NASA microgravity combustion data.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0a0d13",
+  "theme_color": "#0a0d13",
+  "icons": [{ "src": "assets/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
