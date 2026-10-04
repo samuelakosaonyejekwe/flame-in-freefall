@@ -222,9 +222,10 @@
         '<p class="small muted">' + esc(m.note) + "</p>" +
         '<div class="row"><a class="btn primary" href="#ask"><svg><use href="#i-ask"/></svg>Ask FlameMind</a><a class="btn" href="#envelope"><svg><use href="#i-env"/></svg>Check a material</a><a class="btn" href="#live"><svg><use href="#i-live"/></svg>Live NASA feed</a></div></div>' +
         '<div class="hero-stage"><canvas id="flame" aria-label="Animated candle flame changing shape with gravity" role="img"></canvas>' +
-          '<p class="hero-cap">Candle flame shape vs gravity. In orbit (CFM on Mir) flames turn into dim blue spheres.</p>' +
+          '<div class="hero-cap"><b>Drag the gravity slider to reshape the flame.</b><p id="g-cap" aria-live="polite"></p></div>' +
           '<div class="hero-ctl"><div class="row"><label for="g-slider">Gravity</label><output id="g-out">0.00 g · orbit</output></div>' +
-          '<input id="g-slider" type="range" min="0" max="1" step="0.01" value="0" aria-label="Gravity level for the flame animation"></div></div>' +
+          '<input id="g-slider" type="range" min="0" max="1" step="0.01" value="0" aria-describedby="g-cap">' +
+          '<div class="g-stops" role="group" aria-label="Gravity presets">' + [["0", "Orbit"], ["0.166", "Moon"], ["0.38", "Mars"], ["1", "Earth"]].map(function (p) { return '<button type="button" data-g="' + p[0] + '">' + p[1] + "</button>"; }).join("") + "</div></div></div>" +
       "</div>" +
       '<div class="stats">' +
         stat("Experiments & campaigns", FF.EXPERIMENTS.length, "drop tower to Cygnus") +
@@ -756,12 +757,25 @@
   function startFlame() {
     var cv = $("#flame"); if (!cv) return;
     var cx2 = cv.getContext("2d"), reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
-    var slider = $("#g-slider"), out = $("#g-out");
+    var slider = $("#g-slider"), out = $("#g-out"), cap = $("#g-cap");
     slider.value = flameG;
     function label(g) { return g < 0.02 ? "orbit" : Math.abs(g - 0.166) < 0.03 ? "Moon" : Math.abs(g - 0.38) < 0.03 ? "Mars" : g > 0.97 ? "Earth" : "partial"; }
-    function setOut() { out.textContent = (+flameG).toFixed(2) + " g · " + label(flameG); }
+    var CAPS = {
+      orbit: "Orbit: with no buoyancy, hot gas does not rise. Oxygen arrives only by slow diffusion, so the flame shrinks to a dim blue sphere (CFM on Mir).",
+      Moon: "Moon: weak buoyancy gives a short, rounded flame. Thin fabrics can burn more readily here than on Earth.",
+      Mars: "Mars: stronger buoyancy draws in more air; the flame lengthens and a yellow soot core appears.",
+      partial: "Partial gravity: the more gravity, the faster hot gas rises and the taller and brighter the flame.",
+      Earth: "Earth: hot gas rises fast and pulls in fresh air, giving the familiar tall, yellow, flickering teardrop."
+    };
+    function setOut() {
+      var l = label(flameG); out.textContent = (+flameG).toFixed(2) + " g · " + l; cap.textContent = CAPS[l];
+      document.querySelectorAll(".g-stops [data-g]").forEach(function (b) { b.setAttribute("aria-pressed", label(+b.getAttribute("data-g")) === l); });
+    }
     setOut();
     slider.addEventListener("input", function () { flameG = +slider.value; setOut(); if (reduce) draw(0); });
+    document.querySelectorAll(".g-stops [data-g]").forEach(function (b) {
+      b.addEventListener("click", function () { slider.value = b.getAttribute("data-g"); slider.dispatchEvent(new Event("input")); });
+    });
     function size() {
       var dpr = Math.min(2, window.devicePixelRatio || 1), b = cv.getBoundingClientRect();
       cv.width = Math.max(1, b.width * dpr); cv.height = Math.max(1, b.height * dpr); cx2.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -770,7 +784,7 @@
       var b = cv.getBoundingClientRect(), w = b.width, h = b.height, g = flameG, sg = Math.sqrt(g);
       cx2.clearRect(0, 0, w, h);
       var base = Math.min(w, h) * 0.15, el2 = 1 + 1.9 * sg, flick = g * (Math.sin(t * 0.011) * 0.06 + Math.sin(t * 0.0173) * 0.04 + Math.sin(t * 0.031) * 0.02);
-      var cx = w / 2, cy = h * 0.5, sway = g * Math.sin(t * 0.0047) * base * 0.06;
+      var cx = w / 2, cy = h * 0.58, sway = g * Math.sin(t * 0.0047) * base * 0.06;
       cx2.globalCompositeOperation = "lighter";
       // outer blue envelope
       layer(cx + sway, cy - (el2 - 1) * base * 0.55, base * 1.25, el2 * (1 + flick), [[0, "rgba(60,120,255,0.0)"], [0.55, "rgba(70,130,255," + (0.28 - 0.12 * sg) + ")"], [0.8, "rgba(40,90,220," + (0.22 - 0.1 * sg) + ")"], [1, "rgba(20,40,120,0)"]]);
@@ -781,7 +795,7 @@
       layer(cx, cy + base * 0.25, base * 0.7, 0.55, [[0, "rgba(120,170,255,0)"], [0.7, "rgba(110,160,255," + (0.35 - 0.1 * sg) + ")"], [1, "rgba(40,80,200,0)"]]);
       cx2.globalCompositeOperation = "source-over";
       cx2.strokeStyle = "rgba(30,30,30,0.9)"; cx2.lineWidth = 2.5; cx2.beginPath(); cx2.moveTo(cx, cy + base * 0.55); cx2.lineTo(cx, cy + base * 0.15); cx2.stroke();
-      cx2.fillStyle = "rgba(220,225,235,0.14)"; cx2.fillRect(cx - base * 0.3, cy + base * 0.55, base * 0.6, Math.min(base * 1.1, h * 0.72 - cy - base * 0.55));
+      cx2.fillStyle = "rgba(220,225,235,0.14)"; cx2.fillRect(cx - base * 0.3, cy + base * 0.55, base * 0.6, Math.min(base * 1.1, h * 0.76 - cy - base * 0.55));
     }
     function layer(x, y, r, sy, stops) {
       cx2.save(); cx2.translate(x, y); cx2.scale(1, sy);
@@ -822,6 +836,13 @@
     labelScrollers(el);
     if (keep) { var again = document.getElementById(keep); if (again) again.focus({ preventScroll: true }); }
   }
+  // In-app trail of visited sections, so the back button works in the installed
+  // app, which has no browser toolbar.
+  var trail = [];
+  function goBack() {
+    if (trail.length > 1) history.back();
+    else location.replace("#briefing");
+  }
   function route() {
     var v = (location.hash || "").replace("#", "");
     if (VIEWS.indexOf(v) < 0) {
@@ -829,6 +850,8 @@
       v = rendered[S.view] ? S.view : "briefing";
     }
     var changed = S.view !== v; S.view = v;
+    if (trail[trail.length - 2] === v) trail.pop(); else if (trail[trail.length - 1] !== v) trail.push(v);
+    $("#back-btn").hidden = v === "briefing" && trail.length < 2;
     if (!$("#drawer").hidden) { $("#drawer").hidden = true; document.body.style.overflow = ""; }   // a panel never outlives its section
     VIEWS.forEach(function (x) { document.getElementById("view-" + x).hidden = x !== v; });
     document.querySelectorAll("[data-view]").forEach(function (a) { if (a.tagName === "A") a.setAttribute("aria-current", a.getAttribute("data-view") === v ? "page" : "false"); });
@@ -873,6 +896,7 @@
     icon();
     $("#more-btn").addEventListener("click", function () { $("#more-sheet").hidden = false; var a = $("#more-sheet a"); if (a) a.focus(); });
     $("#more-sheet").addEventListener("click", function (e) { if (e.target.id === "more-sheet" || e.target.closest("a, button")) $("#more-sheet").hidden = true; });
+    $("#back-btn").addEventListener("click", goBack);
     $("#install-btn").addEventListener("click", openInstall);
     $("#install-btn-2").addEventListener("click", openInstall);
     // The rail sits below the top bar, whose height changes as controls wrap.

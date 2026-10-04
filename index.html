@@ -50,6 +50,7 @@
   <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
   <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></symbol>
   <symbol id="i-send" viewBox="0 0 24 24"><path d="M4 12l16-8-6 16-2-6z"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
   <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
   <symbol id="i-ext" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></symbol>
   <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/></symbol>
@@ -61,10 +62,13 @@
 
 <div class="app">
   <header class="topbar">
+    <div class="top-left">
+    <button type="button" class="icon-btn" id="back-btn" aria-label="Back" hidden><svg><use href="#i-back"/></svg></button>
     <a class="brand" href="#briefing" aria-label="Flame in Freefall home">
       <span class="brand-mark" aria-hidden="true"></span>
       <span class="brand-text"><b>Flame in Freefall</b><small>Microgravity fire safety intelligence</small></span>
     </a>
+    </div>
     <div class="top-controls">
       <label class="ctl">
         <span class="ctl-label">Mission</span>
